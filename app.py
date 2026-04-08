@@ -116,24 +116,27 @@ bar_colors = [CAMPAIGN_CONFIG["Sports"]["accent"] if c == "Sports"
               else CAMPAIGN_CONFIG["Holiday"]["accent"]
               for c in all_sorted["Campaign"]]
 
-fig_all = go.Figure(go.Bar(
-    x=all_sorted["Agent"], y=all_sorted["Contact %"],
-    marker_color=bar_colors, marker_line_width=0,
-    text=[f"{v}%" for v in all_sorted["Contact %"]],
-    textposition="outside",
-    textfont=dict(size=11, family=FONT, color="#0A0E1A"),
-    customdata=all_sorted["Campaign"],
-    hovertemplate="<b>%{x}</b><br>Campaign: %{customdata}<br>Contact: %{y}%<extra></extra>",
-))
+# Build one trace per campaign so legend works cleanly
+fig_all = go.Figure()
+for camp_name, camp_cfg in CAMPAIGN_CONFIG.items():
+    camp_data = all_sorted[all_sorted["Campaign"] == camp_name]
+    if camp_data.empty:
+        continue
+    fig_all.add_trace(go.Bar(
+        name=f"{camp_cfg['emoji']} {camp_name}",
+        x=camp_data["Agent"], y=camp_data["Contact %"],
+        marker_color=camp_cfg["accent"], marker_line_width=0,
+        text=[f"{v}%" for v in camp_data["Contact %"]],
+        textposition="outside",
+        textfont=dict(size=11, family=FONT, color="#0A0E1A"),
+        hovertemplate="<b>%{x}</b><br>Campaign: " + camp_name + "<br>Contact: %{y}%<extra></extra>",
+    ))
 fig_all.add_shape(type="line", x0=-.5, x1=len(all_sorted)-.5, y0=50, y1=50,
                   line=dict(color="#D1D5DB", dash="dot", width=1.5))
 fig_all.add_annotation(x=len(all_sorted)-.5, y=50, text="50% benchmark",
     showarrow=False, font=dict(size=9, color="#9CA3AF"), xanchor="right", yanchor="bottom")
-for label, color in [("🏅 Sports", CAMPAIGN_CONFIG["Sports"]["accent"]),
-                     ("🏖️ Holiday", CAMPAIGN_CONFIG["Holiday"]["accent"])]:
-    fig_all.add_trace(go.Scatter(x=[None], y=[None], mode="markers",
-        marker=dict(color=color, size=10, symbol="square"), name=label, showlegend=True))
-max_y = max(all_sorted["Contact %"].max()+18, 70) if not all_sorted.empty else 70
+# Legend via legendgroup on the bars themselves - no dummy traces needed
+max_y = max(agent_df["Contact %"].max()+18, 70) if not agent_df.empty else 70
 fig_all.update_layout(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
     font_family=FONT, font_color="#0A0E1A",
