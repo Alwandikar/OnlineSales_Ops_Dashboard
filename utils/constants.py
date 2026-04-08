@@ -1,5 +1,4 @@
 # utils/constants.py
-# ── Single source of truth for all shared config ──────────────────────────────
 
 ADMIN_PASSWORD = "CSonline2026"
 
@@ -9,25 +8,17 @@ CACHE_RAW_FILE = "last_raw.json"
 TEST_AGENT_NAMES = {"testagent", "test_agent", "test agent", "test"}
 
 CAMPAIGNS = {
-    # Agent first-names produced by split('_')[0].capitalize()
     "Sports":  ["Kishan", "Dilip", "Dilipsingh", "Melito", "Gibson", "Gideon"],
     "Holiday": ["Vinay", "Brendan", "Ajinkya", "Khushbu"],
 }
 
 AGENT_CAMPAIGN_MAP = {agent: camp for camp, agents in CAMPAIGNS.items() for agent in agents}
 
-# Raw CSV "Campaign name" values -> dashboard campaign label
-# InTalk uses these exact strings in the export
 CSV_CAMPAIGN_MAP = {
     "Dsg_PreviewAuto":     "Sports",
     "Holiday_PreviewAuto": "Holiday",
     "Holiday_Churn":       "Holiday",
-    # "Inbound" and anything else -> "Unknown"
 }
-
-# ── Disposition logic ─────────────────────────────────────────────────────────
-# "Contacted"     = call was answered / agent spoke to someone
-# "Not Contacted" = line never picked up (busy, DNC, abandoned, system rows)
 
 ALL_DISPOSITIONS = [
     "Followup",
@@ -38,19 +29,16 @@ ALL_DISPOSITIONS = [
     "Not Contactable",
 ]
 
-# Everything here = call was answered (a human was reached)
-CONTACTED_DISPOSITIONS = {"Followup", "Information Shared", "Quote Sent", "Junk", "Lost"}
-
-# Everything else = not reached
+CONTACTED_DISPOSITIONS     = {"Followup", "Information Shared", "Quote Sent", "Junk", "Lost"}
 NOT_CONTACTED_DISPOSITIONS = {"Not Contactable"}
 
 DISP_COLORS = {
-    "Followup":          "#1DB954",
-    "Information Shared":"#1ed760",
-    "Quote Sent":        "#17a2b8",
-    "Junk":              "#f59e0b",
-    "Lost":              "#e85454",
-    "Not Contactable":   "#535353",
+    "Followup":          "#0047CC",
+    "Information Shared":"#047857",
+    "Quote Sent":        "#6D28D9",
+    "Junk":              "#B45309",
+    "Lost":              "#B91C1C",
+    "Not Contactable":   "#6B7280",
 }
 
 DISP_ICONS = {
@@ -64,25 +52,30 @@ DISP_ICONS = {
 
 CAMPAIGN_CONFIG = {
     "Sports": {
-        "accent":     "#1DB954",
+        "accent":     "#0047CC",
         "chip_class": "chip-sports",
         "emoji":      "🏅",
     },
     "Holiday": {
-        "accent":     "#1ed760",
+        "accent":     "#047857",
         "chip_class": "chip-holiday",
         "emoji":      "🏖️",
     },
 }
 
-# ── Design tokens ─────────────────────────────────────────────────────────────
-FONT         = "DM Sans, sans-serif"
-BG_BASE      = "#121212"
-BG_ELEVATED  = "#181818"
-BG_RAISED    = "#282828"
-ACCENT_GREEN = "#1DB954"
-TXT_PRIMARY  = "#FFFFFF"
-TXT_SECONDARY= "#B3B3B3"
-TXT_MUTED    = "#535353"
-GRID         = "#282828"
-TXTC         = "#B3B3B3"
+# ── DSG Brand tokens ──────────────────────────────────────────────────────────
+# Extracted from dreamsetgo.com: dark navy nav, white surface, gold accent
+DSG_NAVY   = "#0A0E1A"   # top nav / sidebar
+DSG_GOLD   = "#C9A035"   # primary accent (buttons, active tabs, highlights)
+DSG_GOLD_L = "#E8BE52"   # hover gold
+DSG_WHITE  = "#FFFFFF"
+DSG_BG     = "#F5F6F8"   # page background
+DSG_CARD   = "#FFFFFF"   # card background
+DSG_BORDER = "#E2E5EC"
+DSG_TEXT   = "#0A0E1A"   # primary text
+DSG_MUTED  = "#6B7280"   # secondary text
+DSG_SUBTLE = "#9CA3AF"   # labels
+
+FONT  = "DM Sans, sans-serif"
+GRID  = "#F0F2F5"
+TXTC  = "#6B7280"
