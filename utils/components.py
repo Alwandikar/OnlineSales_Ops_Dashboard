@@ -6,92 +6,98 @@ import streamlit as st
 
 from utils.constants import (
     ALL_DISPOSITIONS, DISP_COLORS, DISP_ICONS,
-    DSG_NAVY, DSG_GOLD, DSG_GOLD_L, DSG_BORDER,
+    DSG_NAVY, DSG_GOLD, DSG_BORDER,
     FONT, GRID, TXTC,
 )
 from utils.data import format_duration, get_mtd_range
 
 
-# ── Date filter (shared across all pages via session_state) ───────────────────
+# ── Date filter ───────────────────────────────────────────────────────────────
 
 def render_date_filter() -> tuple:
     """
-    Renders a MakeMyTrip-style date range filter bar.
-    Stores selection in st.session_state['date_from'] / ['date_to'].
-    Returns (from_date, to_date) as date objects.
+    Date range filter with From, To, quick buttons, and a Submit button.
+    Uses session_state so all 3 pages share the same active range.
+    Returns (from_date, to_date) — only changes when Submit is clicked.
     """
     today = date.today()
     mtd_from, mtd_to = get_mtd_range()
 
-    # Initialise session state on first load
-    if "date_from" not in st.session_state:
-        st.session_state["date_from"] = mtd_from
-    if "date_to" not in st.session_state:
-        st.session_state["date_to"] = mtd_to
+    # Initialise on first load
+    if "date_from"        not in st.session_state: st.session_state["date_from"]        = mtd_from
+    if "date_to"          not in st.session_state: st.session_state["date_to"]          = mtd_to
+    if "date_from_applied" not in st.session_state: st.session_state["date_from_applied"] = mtd_from
+    if "date_to_applied"   not in st.session_state: st.session_state["date_to_applied"]   = mtd_to
 
-    with st.container():
-        st.markdown("<div style='margin-bottom:.5rem'>", unsafe_allow_html=True)
+    # Quick-select buttons update staging values and auto-apply
+    col_label, col_mtd, col_all, col_spacer = st.columns([1, 1.2, 1.2, 6])
+    with col_label:
+        st.markdown(
+            "<div style='padding-top:.55rem;font-size:.68rem;font-weight:700;"
+            "letter-spacing:.1em;text-transform:uppercase;color:#9CA3AF'>📅 Date Range</div>",
+            unsafe_allow_html=True,
+        )
+    with col_mtd:
+        if st.button("This Month", key="btn_mtd", use_container_width=True):
+            st.session_state["date_from"]         = mtd_from
+            st.session_state["date_to"]           = mtd_to
+            st.session_state["date_from_applied"] = mtd_from
+            st.session_state["date_to_applied"]   = mtd_to
+            st.rerun()
+    with col_all:
+        if st.button("All Data", key="btn_all", use_container_width=True):
+            st.session_state["date_from"]         = date(2025, 1, 1)
+            st.session_state["date_to"]           = today
+            st.session_state["date_from_applied"] = date(2025, 1, 1)
+            st.session_state["date_to_applied"]   = today
+            st.rerun()
 
-        col_label, col_from, col_to, col_mtd, col_clear = st.columns([1, 2, 2, 1.2, 1])
+    # From / To pickers + Submit
+    c_from, c_to, c_submit = st.columns([2, 2, 1])
+    with c_from:
+        from_staging = st.date_input(
+            "From", value=st.session_state["date_from"],
+            min_value=date(2025, 1, 1), max_value=today,
+            key="di_from", label_visibility="visible",
+        )
+    with c_to:
+        max_to    = min(today, from_staging + timedelta(days=30))
+        to_staging = st.session_state["date_to"]
+        if to_staging > max_to: to_staging = max_to
+        to_staging = st.date_input(
+            "To", value=to_staging,
+            min_value=from_staging, max_value=max_to,
+            key="di_to", label_visibility="visible",
+        )
+    with c_submit:
+        st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
+        if st.button("Apply ✓", key="btn_apply", use_container_width=True, type="primary"):
+            st.session_state["date_from"]         = from_staging
+            st.session_state["date_to"]           = to_staging
+            st.session_state["date_from_applied"] = from_staging
+            st.session_state["date_to_applied"]   = to_staging
+            st.rerun()
 
-        with col_label:
-            st.markdown(
-                "<div style='padding-top:.55rem;font-size:.68rem;font-weight:700;"
-                "letter-spacing:.1em;text-transform:uppercase;color:#9CA3AF'>📅 Filter</div>",
-                unsafe_allow_html=True,
-            )
+    # Always stage the picker values (even before Apply)
+    st.session_state["date_from"] = from_staging
+    st.session_state["date_to"]   = to_staging
 
-        with col_from:
-            from_date = st.date_input(
-                "From", value=st.session_state["date_from"],
-                min_value=date(2025, 1, 1), max_value=today,
-                key="di_from", label_visibility="collapsed",
-            )
+    # Use the last *applied* values for actual filtering
+    from_date = st.session_state["date_from_applied"]
+    to_date   = st.session_state["date_to_applied"]
 
-        with col_to:
-            # Enforce max 31-day window
-            max_to = min(today, from_date + timedelta(days=30))
-            to_val = st.session_state["date_to"]
-            if to_val > max_to:
-                to_val = max_to
-            to_date = st.date_input(
-                "To", value=to_val,
-                min_value=from_date, max_value=max_to,
-                key="di_to", label_visibility="collapsed",
-            )
-
-        with col_mtd:
-            if st.button("This Month", key="btn_mtd", use_container_width=True):
-                st.session_state["date_from"] = mtd_from
-                st.session_state["date_to"]   = mtd_to
-                st.rerun()
-
-        with col_clear:
-            if st.button("All Data", key="btn_all", use_container_width=True):
-                # Show all data in cache
-                st.session_state["date_from"] = date(2025, 1, 1)
-                st.session_state["date_to"]   = today
-                st.rerun()
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # Persist any manual changes
-    st.session_state["date_from"] = from_date
-    st.session_state["date_to"]   = to_date
-
-    # Show active range banner
     days = (to_date - from_date).days + 1
     st.markdown(
-        f'<div class="date-banner">📅 &nbsp;Showing &nbsp;<strong>{from_date.strftime("%d %b %Y")}'
-        f'</strong> &nbsp;→&nbsp; <strong>{to_date.strftime("%d %b %Y")}</strong>'
-        f'&nbsp; &nbsp;({days} day{"s" if days != 1 else ""})</div>',
+        f'<div class="date-banner">📅 &nbsp;Showing &nbsp;'
+        f'<strong>{from_date.strftime("%d %b %Y")}</strong>'
+        f'&nbsp;→&nbsp;<strong>{to_date.strftime("%d %b %Y")}</strong>'
+        f'&nbsp;&nbsp;({days} day{"s" if days != 1 else ""})</div>',
         unsafe_allow_html=True,
     )
-
     return from_date, to_date
 
 
-# ── HTML component helpers ────────────────────────────────────────────────────
+# ── HTML helpers ──────────────────────────────────────────────────────────────
 
 def kpi_card(label, value, sub_text, icon, accent, value_class=""):
     return f"""<div class="kpi-card">
@@ -123,10 +129,8 @@ def empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview pa
     </div>""", unsafe_allow_html=True)
 
 
-def top_nav(subtitle, page_tag, logo_class="", tag_class="", logo_icon=""):
-    """DSG-branded nav — uses actual DSG logo."""
-    st.markdown(f"""
-    <div class="top-nav">
+def top_nav(subtitle, page_tag, **_):
+    st.markdown(f"""<div class="top-nav">
         <div class="nav-brand">
             <img src="https://www.dreamsetgo.com/DreamSetGo-48x48.png"
                  class="nav-logo" alt="DSG"/>
@@ -146,11 +150,12 @@ def section_label(text, margin_top="2rem"):
     )
 
 
-# ── Plotly layout base ────────────────────────────────────────────────────────
+# ── Chart helpers ─────────────────────────────────────────────────────────────
 
 def _base(height=300, **kw):
     d = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-             font_family=FONT, font_color=TXTC, margin=dict(l=0,r=0,t=10,b=0), height=height)
+             font_family=FONT, font_color="#0A0E1A",
+             margin=dict(l=0, r=0, t=10, b=0), height=height)
     d.update(kw)
     return d
 
@@ -160,8 +165,6 @@ def pct_color(v):
     if v >= 40: return "#B45309"
     return "#B91C1C"
 
-
-# ── Charts ────────────────────────────────────────────────────────────────────
 
 def agent_bar_chart(sub, accent):
     sub = sub.sort_values("Contact %", ascending=True)
@@ -197,13 +200,13 @@ def connect_pct_bar(sub):
         textposition="outside",
         textfont=dict(size=11, family=FONT, color="#0A0E1A"),
     ))
-    fig.add_shape(type="line", x0=-0.5, x1=len(sub)-.5, y0=50, y1=50,
+    fig.add_shape(type="line", x0=-.5, x1=len(sub)-.5, y0=50, y1=50,
                   line=dict(color="#D1D5DB", dash="dot", width=1.5))
     fig.add_annotation(x=len(sub)-.5, y=50, text="50% target", showarrow=False,
                        font=dict(size=9, color="#9CA3AF"), xanchor="right", yanchor="bottom")
     max_y = max(sub["Contact %"].max()+15, 70) if not sub.empty else 70
     fig.update_layout(**_base(height=250, showlegend=False, margin=dict(l=0,r=0,t=24,b=0)),
-        yaxis=dict(range=[0, max_y], showgrid=True, gridcolor=GRID, zeroline=False,
+        yaxis=dict(range=[0,max_y], showgrid=True, gridcolor=GRID, zeroline=False,
                    ticksuffix="%", tickfont=dict(size=10, color=TXTC)),
         xaxis=dict(showgrid=False, tickfont=dict(size=12, color="#0A0E1A")),
     )
@@ -221,9 +224,12 @@ def disposition_donut(att, conn, fail, accent):
     other = max(att - conn - fail, 0)
     pct   = round(conn / att * 100, 1)
     fig = go.Figure(go.Pie(
-        labels=["Contacted","Not Contacted","Other"], values=[conn, fail, other], hole=.62,
-        marker=dict(colors=[accent, "#FCA5A5", "#E5E7EB"], line=dict(color="#fff", width=2)),
-        textinfo="none", hovertemplate="%{label}: %{value} (%{percent})<extra></extra>",
+        labels=["Contacted","Not Contacted","Other"],
+        values=[conn, fail, other], hole=.62,
+        marker=dict(colors=[accent, "#E5E7EB", "#F3F4F6"],
+                    line=dict(color="#fff", width=2)),
+        textinfo="none",
+        hovertemplate="%{label}: %{value} (%{percent})<extra></extra>",
     ))
     fig.add_annotation(text=f"<b>{pct}%</b>", x=0.5, y=0.5, showarrow=False,
                        font=dict(size=20, color="#0A0E1A", family=FONT))
@@ -278,13 +284,16 @@ def _table_styles():
             ("text-transform","uppercase"),("color","#9CA3AF"),("background","#F9FAFB"),
             ("border-bottom","1px solid #E2E5EC"),("padding","10px 14px"),
         ]},
-        {"selector": "td", "props": [("padding","10px 14px"),("border-bottom","1px solid #F3F4F6"),("color","#0A0E1A")]},
+        {"selector": "td", "props": [
+            ("padding","10px 14px"),("border-bottom","1px solid #F3F4F6"),("color","#0A0E1A"),
+        ]},
         {"selector": "tr:last-child td", "props": [("border-bottom","none")]},
         {"selector": "tr:hover td",      "props": [("background-color","#F9FAFB")]},
     ]
 
 
 def render_agent_summary_table(sub):
+    import pandas as pd
     display = sub[["Agent","Attempts","Contacted","NotContacted","Contact %","TalkTimeSecs"]].copy()
     display.rename(columns={"NotContacted":"Not Contacted"}, inplace=True)
     display["Talk Time"] = display["TalkTimeSecs"].apply(format_duration)
@@ -294,11 +303,12 @@ def render_agent_summary_table(sub):
     def _row_style(row):
         v  = float(row["Contact %"].replace("%",""))
         bg = "#F0FDF4" if v >= 60 else ("#FFFBEB" if v >= 40 else "#FEF2F2")
-        return [""]*(len(row)-2) + [f"background:{bg};font-weight:700",""]
+        cols = list(row.index)
+        cp_idx = cols.index("Contact %")
+        return [""] * cp_idx + [f"background:{bg};font-weight:700"] + [""] * (len(cols) - cp_idx - 1)
 
     styled = (
-        display.style
-               .apply(_row_style, axis=1)
+        display.style.apply(_row_style, axis=1)
                .set_properties(**{"font-size":"13px","font-family":"DM Sans, sans-serif"})
                .set_table_styles(_table_styles())
                .hide(axis="index")
@@ -307,10 +317,10 @@ def render_agent_summary_table(sub):
 
 
 def render_disposition_table(raw_df, camp_map):
+    import pandas as pd
     table_pivot = raw_df.groupby(["Agent","Disposition"]).size().unstack(fill_value=0)
     for d in ALL_DISPOSITIONS:
-        if d not in table_pivot.columns:
-            table_pivot[d] = 0
+        if d not in table_pivot.columns: table_pivot[d] = 0
     table_pivot = table_pivot[ALL_DISPOSITIONS].copy()
     table_pivot["Total"] = table_pivot.sum(axis=1)
     table_pivot = table_pivot.sort_values("Total", ascending=False)
@@ -318,7 +328,7 @@ def render_disposition_table(raw_df, camp_map):
     rows = []
     for agent, row in table_pivot.iterrows():
         total = row["Total"]
-        r = {"Agent": agent, "Campaign": camp_map.get(agent,"Unknown")}
+        r = {"Agent": agent, "Campaign": camp_map.get(agent, "Unknown")}
         for d in ALL_DISPOSITIONS:
             c = int(row[d]); p = round(c/total*100,1) if total else 0.0
             r[d] = f"{c}  ({p}%)"
@@ -328,19 +338,15 @@ def render_disposition_table(raw_df, camp_map):
     display_df = pd.DataFrame(rows)
 
     def _colour_camp(val):
-        if val == "Sports":  return "color:#0047CC;font-weight:600"
-        if val == "Holiday": return "color:#047857;font-weight:600"
+        if val == "Sports":  return "color:#0A0E1A;font-weight:700"
+        if val == "Holiday": return "color:#0A0E1A;font-weight:700"
         return ""
 
     styled = (
-        display_df.style
-                  .applymap(_colour_camp, subset=["Campaign"])
+        display_df.style.applymap(_colour_camp, subset=["Campaign"])
                   .set_properties(**{"font-size":"13px","font-family":"DM Sans, sans-serif"})
                   .set_table_styles(_table_styles())
                   .hide(axis="index")
     )
     st.dataframe(styled, use_container_width=True, hide_index=True)
     return table_pivot
-
-
-import pandas as pd
