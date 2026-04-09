@@ -83,7 +83,6 @@ def _find_column(col_map: dict, candidates: list):
     return next((col_map[k] for k in candidates if k in col_map), None)
 
 
-@st.cache_data(show_spinner=False)
 def process_csv(file_bytes: bytes, filename: str):
     """
     Parse InTalk Call History CSV.
@@ -207,22 +206,36 @@ def process_csv(file_bytes: bytes, filename: str):
 # ── Persistence ───────────────────────────────────────────────────────────────
 
 def save_cache(agent_df: pd.DataFrame, raw_df: pd.DataFrame, csv_date: str) -> None:
+    # Save to session_state first (survives page reruns within same session)
+    st.session_state["_cache_agent"] = agent_df.to_dict(orient="records")
+    st.session_state["_cache_raw"]   = raw_df.to_dict(orient="records")
+    st.session_state["_cache_date"]  = csv_date
+    # Also persist to JSON (survives browser refresh, lost on redeploy)
     try:
         with open(CACHE_FILE, "w") as f:
             json.dump({"date": csv_date, "data": agent_df.to_dict(orient="records")}, f)
         with open(CACHE_RAW_FILE, "w") as f:
             json.dump({"date": csv_date, "data": raw_df.to_dict(orient="records")}, f)
     except OSError as exc:
-        logger.error("Failed to write cache: %s", exc)
-        raise
+        logger.warning("JSON cache write failed (non-fatal): %s", exc)
 
 
 def load_cache():
+    # Try session_state first (fastest, most up-to-date)
+    if "_cache_agent" in st.session_state and "_cache_date" in st.session_state:
+        try:
+            return pd.DataFrame(st.session_state["_cache_agent"]), st.session_state["_cache_date"]
+        except Exception:
+            pass
+    # Fall back to JSON file
     if not os.path.exists(CACHE_FILE):
         return None, None
     try:
         with open(CACHE_FILE) as f:
             p = json.load(f)
+        # Restore into session_state for faster future access
+        st.session_state["_cache_agent"] = p["data"]
+        st.session_state["_cache_date"]  = p["date"]
         return pd.DataFrame(p["data"]), p["date"]
     except (json.JSONDecodeError, KeyError, OSError) as exc:
         logger.warning("Summary cache unreadable (%s)", exc)
@@ -230,6 +243,16 @@ def load_cache():
 
 
 def load_raw_cache():
+    # Try session_state first
+    if "_cache_raw" in st.session_state and "_cache_date" in st.session_state:
+        try:
+            df = pd.DataFrame(st.session_state["_cache_raw"])
+            if "Date" in df.columns:
+                df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+            return df, st.session_state["_cache_date"]
+        except Exception:
+            pass
+    # Fall back to JSON file
     if not os.path.exists(CACHE_RAW_FILE):
         return None, None
     try:
@@ -238,6 +261,9 @@ def load_raw_cache():
         df = pd.DataFrame(p["data"])
         if "Date" in df.columns:
             df["Date"] = pd.to_datetime(df["Date"], errors="coerce").dt.date
+        # Restore into session_state
+        st.session_state["_cache_raw"]  = p["data"]
+        st.session_state["_cache_date"] = p["date"]
         return df, p["date"]
     except (json.JSONDecodeError, KeyError, OSError) as exc:
         logger.warning("Raw cache unreadable (%s)", exc)
