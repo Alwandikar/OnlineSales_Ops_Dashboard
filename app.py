@@ -25,7 +25,7 @@ from utils.components import (
 st.set_page_config(
     page_title="DSG Online Sales Team · Overview",
     page_icon="https://www.dreamsetgo.com/DreamSetGo-48x48.png",
-    layout="wide", initial_sidebar_state="expanded",
+    layout="wide", initial_sidebar_state="collapsed",
 )
 inject_css()
 
@@ -59,12 +59,19 @@ with st.expander("🔒 Admin — Upload Data", expanded=False):
         uploaded = st.file_uploader("Upload InTalk CSV", type=["csv"])
         if uploaded is not None:
             try:
+                # Clear ALL old cached data before processing new file
+                for key in ["_cache_agent", "_cache_raw", "_cache_date",
+                             "date_from_applied", "date_to_applied",
+                             "date_from", "date_to"]:
+                    if key in st.session_state:
+                        del st.session_state[key]
+
                 file_bytes = uploaded.read()
                 new_df, new_raw, new_date, warnings = process_csv(file_bytes, uploaded.name)
                 save_cache(new_df, new_raw, new_date)
                 for w in warnings:
                     st.warning(f"⚠️ {w}")
-                st.success(f"✅ Uploaded for {new_date}!")
+                st.success(f"✅ Data loaded for {new_date}!")
                 st.rerun()
             except ValueError as e:
                 st.error(f"❌ CSV format error: {e}")
