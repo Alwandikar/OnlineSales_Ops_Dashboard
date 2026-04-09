@@ -86,6 +86,14 @@ if raw_df is None:
     empty_state(title="No data loaded yet", sub="Admin needs to upload the InTalk CSV above.")
     st.stop()
 
+# ── Force fresh state on every new deployment ────────────────────────────────
+APP_VERSION = "v5"   # increment this with every push to bust stale session state
+if st.session_state.get("_app_version") != APP_VERSION:
+    for key in list(st.session_state.keys()):
+        del st.session_state[key]
+    st.session_state["_app_version"] = APP_VERSION
+    st.rerun()
+
 # ── Date filter ───────────────────────────────────────────────────────────────
 from_date, to_date = render_date_filter()
 
