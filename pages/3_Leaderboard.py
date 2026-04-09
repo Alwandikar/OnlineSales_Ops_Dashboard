@@ -5,12 +5,10 @@ import plotly.graph_objects as go
 import streamlit as st
 
 from utils.constants import CAMPAIGN_CONFIG, DSG_GOLD, FONT, GRID, TXTC
-from utils.data import (
-    load_cache, format_duration,
-)
+from utils.data import load_cache, format_duration
 from utils.styles import inject_css
 from utils.components import (
-    empty_state, kpi_card, pct_color, render_date_filter,
+    empty_state, kpi_card, pct_color,
     section_label, top_nav,
 )
 
@@ -18,35 +16,24 @@ st.set_page_config(page_title="DSG Sales · Leaderboard", page_icon="🏆",
                    layout="wide", initial_sidebar_state="collapsed")
 inject_css()
 
-raw_df, cached_date = load_raw_cache()
+# Load from session state first (freshest), then JSON cache
+if "_uploaded_raw" in st.session_state:
+    from utils.data import summarise_raw
+    agent_df    = summarise_raw(st.session_state["_uploaded_raw"])
+    cached_date = st.session_state.get("_uploaded_date", "")
+else:
+    agent_df, cached_date = load_cache()
+
 nav_subtitle = f"Dashboard · {cached_date}" if cached_date else "Dashboard"
 top_nav(subtitle=nav_subtitle, page_tag="Leaderboard")
 
-if raw_df is None:
+if agent_df is None or (hasattr(agent_df, 'empty') and agent_df.empty):
     empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview page.", icon="🏆")
     st.stop()
 
-# Force fresh state on new deployment
-APP_VERSION = "v5"
-if st.session_state.get("_app_version") != APP_VERSION:
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.session_state["_app_version"] = APP_VERSION
-    st.rerun()
-
-# Date filter
-from_date, to_date = render_date_filter()
-filtered = filter_raw_by_dates(raw_df, from_date, to_date)
-
-if filtered.empty:
-    empty_state(title="No data for this date range", sub="Try a different range.", icon="📅")
-    st.stop()
-
-agent_df = summarise_raw(filtered)
-
 # Campaign filter
 section_label("Filter by Campaign", margin_top="0")
-camp_filter = st.radio("Campaign", ["All","Sports","Holiday"],
+camp_filter = st.radio("Campaign", ["All", "Sports", "Holiday"],
                        horizontal=True, label_visibility="collapsed")
 display_df = agent_df.copy()
 if camp_filter != "All":
@@ -56,9 +43,9 @@ total_agents = len(display_df)
 
 # Summary KPIs
 section_label("Performance Summary")
-top_agent = display_df.iloc[0] if not display_df.empty else None
-avg_rate  = round(display_df["Contact %"].mean(), 1) if not display_df.empty else 0.0
-above_50  = int((display_df["Contact %"] >= 50).sum())
+top_agent  = display_df.iloc[0] if not display_df.empty else None
+avg_rate   = round(display_df["Contact %"].mean(), 1) if not display_df.empty else 0.0
+above_50   = int((display_df["Contact %"] >= 50).sum())
 total_talk = float(display_df["TalkTimeSecs"].sum()) if "TalkTimeSecs" in display_df.columns else 0.0
 
 k1, k2, k3, k4, k5 = st.columns(5)
@@ -84,13 +71,12 @@ for i, row in display_df.iterrows():
     rank      = i + 1
     pct       = row["Contact %"]
     campaign  = row["Campaign"]
-    cfg       = CAMPAIGN_CONFIG.get(campaign, {"chip_class":"chip-holiday","emoji":"❓"})
+    cfg       = CAMPAIGN_CONFIG.get(campaign, {"chip_class": "chip-holiday", "emoji": "❓"})
     bar_color = pct_color(pct)
     bar_width = round(pct / max_pct * 100, 1) if max_pct else 0
     talk      = format_duration(row["TalkTimeSecs"]) if "TalkTimeSecs" in row else "—"
-
-    badge = "rank-1" if rank==1 else "rank-2" if rank==2 else "rank-3" if rank==3 else "rank-n"
-    medal = {1:"🥇",2:"🥈",3:"🥉"}.get(rank, str(rank))
+    badge     = "rank-1" if rank==1 else "rank-2" if rank==2 else "rank-3" if rank==3 else "rank-n"
+    medal     = {1:"🥇",2:"🥈",3:"🥉"}.get(rank, str(rank))
 
     st.markdown(f"""<div class="leaderboard-row">
         <div class="rank-badge {badge}">{medal}</div>
@@ -116,12 +102,12 @@ for i, row in display_df.iterrows():
 # Distribution chart
 section_label("Contact Rate Distribution")
 bands = {
-    "🔥 Elite (≥70%)":      display_df[display_df["Contact %"] >= 70],
-    "✅ Good (50–69%)":     display_df[(display_df["Contact %"] >= 50) & (display_df["Contact %"] < 70)],
-    "⚠️ Average (30–49%)":  display_df[(display_df["Contact %"] >= 30) & (display_df["Contact %"] < 50)],
-    "❌ Below (<30%)":      display_df[display_df["Contact %"] < 30],
+    "🔥 Elite (≥70%)":     display_df[display_df["Contact %"] >= 70],
+    "✅ Good (50–69%)":    display_df[(display_df["Contact %"] >= 50) & (display_df["Contact %"] < 70)],
+    "⚠️ Average (30–49%)": display_df[(display_df["Contact %"] >= 30) & (display_df["Contact %"] < 50)],
+    "❌ Below (<30%)":     display_df[display_df["Contact %"] < 30],
 }
-band_colors = ["#047857","#0047CC","#B45309","#B91C1C"]
+band_colors = ["#047857", "#0047CC", "#B45309", "#B91C1C"]
 
 col_left, col_right = st.columns([3, 2])
 with col_left:
@@ -141,7 +127,7 @@ with col_left:
     fig.update_layout(
         paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font_family=FONT, font_color="#0A0E1A",
-        margin=dict(l=0,r=0,t=10,b=0), height=320, barmode="group",
+        margin=dict(l=0, r=0, t=10, b=0), height=320, barmode="group",
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
                     font_size=11, bgcolor="rgba(0,0,0,0)"),
         yaxis=dict(range=[0,max_y], showgrid=True, gridcolor=GRID, zeroline=False,
@@ -153,7 +139,7 @@ with col_left:
 with col_right:
     section_label("Band Summary", margin_top="0")
     for (lbl, bdf), color in zip(bands.items(), band_colors):
-        count = len(bdf)
+        count     = len(bdf)
         pct_share = round(count / total_agents * 100) if total_agents else 0
         st.markdown(f"""<div style="background:#FFFFFF;border-radius:10px;border:1px solid #E2E5EC;
              padding:.85rem 1.1rem;margin-bottom:.5rem;
@@ -169,6 +155,6 @@ with st.expander("📋 Full Rankings Table"):
     table = display_df[["Agent","Campaign","Contact %","Attempts","Contacted","NotContacted"]].copy()
     if "TalkTimeSecs" in display_df.columns:
         table["Talk Time"] = display_df["TalkTimeSecs"].apply(format_duration)
-    table.rename(columns={"NotContacted":"Not Contacted"}, inplace=True)
+    table.rename(columns={"NotContacted": "Not Contacted"}, inplace=True)
     table.insert(0, "Rank", range(1, len(table)+1))
     st.dataframe(table, use_container_width=True, hide_index=True)
