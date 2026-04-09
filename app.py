@@ -94,19 +94,11 @@ if st.session_state.get("_app_version") != APP_VERSION:
     st.session_state["_app_version"] = APP_VERSION
     st.rerun()
 
-# ── Date filter ───────────────────────────────────────────────────────────────
-from_date, to_date = render_date_filter()
-
-# Filter raw data and rebuild summary for the selected date range
-filtered_raw = filter_raw_by_dates(raw_df, from_date, to_date)
-agent_df     = summarise_raw(filtered_raw)
+# ── Build summary from all data ──────────────────────────────────────────────
+agent_df = summarise_raw(raw_df)
 
 if agent_df.empty:
-    empty_state(
-        title="No data for this date range",
-        sub="Try selecting a different date range or upload more data.",
-        icon="📅",
-    )
+    empty_state(title="No data loaded yet", sub="Upload a CSV above.")
     st.stop()
 
 # ── Overall KPIs ──────────────────────────────────────────────────────────────

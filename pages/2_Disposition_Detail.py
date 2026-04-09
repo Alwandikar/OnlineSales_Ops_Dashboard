@@ -23,21 +23,7 @@ if raw_df is None:
     empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview page.")
     st.stop()
 
-# Force fresh state on new deployment
-APP_VERSION = "v5"
-if st.session_state.get("_app_version") != APP_VERSION:
-    for key in list(st.session_state.keys()):
-        del st.session_state[key]
-    st.session_state["_app_version"] = APP_VERSION
-    st.rerun()
 
-# Date filter — shared session state
-from_date, to_date = render_date_filter()
-raw_df = filter_raw_by_dates(raw_df, from_date, to_date)
-
-if raw_df.empty:
-    empty_state(title="No data for this date range", sub="Try a different range.", icon="📅")
-    st.stop()
 
 # Campaign filter
 section_label("Filter by Campaign", margin_top="0")
