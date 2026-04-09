@@ -23,11 +23,14 @@ def render_date_filter() -> tuple:
     today = date.today()
     mtd_from, mtd_to = get_mtd_range()
 
-    # Initialise on first load
-    if "date_from"        not in st.session_state: st.session_state["date_from"]        = mtd_from
-    if "date_to"          not in st.session_state: st.session_state["date_to"]          = mtd_to
-    if "date_from_applied" not in st.session_state: st.session_state["date_from_applied"] = mtd_from
-    if "date_to_applied"   not in st.session_state: st.session_state["date_to_applied"]   = mtd_to
+    # Always reset to MTD on fresh load (no applied dates in session)
+    if "date_from_applied" not in st.session_state:
+        st.session_state["date_from_applied"] = mtd_from
+        st.session_state["date_to_applied"]   = mtd_to
+    if "date_from" not in st.session_state:
+        st.session_state["date_from"] = mtd_from
+    if "date_to" not in st.session_state:
+        st.session_state["date_to"] = mtd_to
 
     # Quick-select buttons update staging values and auto-apply
     col_label, col_mtd, col_all, col_spacer = st.columns([1, 1.2, 1.2, 6])
@@ -343,7 +346,7 @@ def render_disposition_table(raw_df, camp_map):
         return ""
 
     styled = (
-        display_df.style.applymap(_colour_camp, subset=["Campaign"])
+        display_df.style.map(_colour_camp, subset=["Campaign"])
                   .set_properties(**{"font-size":"13px","font-family":"DM Sans, sans-serif"})
                   .set_table_styles(_table_styles())
                   .hide(axis="index")
