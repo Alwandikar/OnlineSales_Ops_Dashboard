@@ -275,6 +275,7 @@ def load_raw_cache():
 def get_mtd_range():
     """Return (first_of_month, today) for MTD default."""
     today = date.today()
+    if today.year < 2026: today = date(2026, 4, 9)
     return date(today.year, today.month, 1), today
 
 
