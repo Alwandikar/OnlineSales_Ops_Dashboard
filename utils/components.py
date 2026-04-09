@@ -60,7 +60,7 @@ def render_date_filter() -> tuple:
     with c_from:
         from_staging = st.date_input(
             "From", value=st.session_state["date_from"],
-            min_value=date(2026, 1, 1), max_value=today,
+            min_value=date(2025, 1, 1), max_value=today,
             key="di_from", label_visibility="visible",
         )
     with c_to:
