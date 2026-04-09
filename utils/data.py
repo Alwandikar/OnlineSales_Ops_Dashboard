@@ -153,7 +153,7 @@ def process_csv(file_bytes: bytes, filename: str):
     if date_col:
         try:
             parsed = pd.to_datetime(df[date_col], errors="coerce", dayfirst=True).dropna()
-            csv_date = parsed.dt.date.mode()[0].strftime("%d %b %Y") if len(parsed) else datetime.today().strftime("%d %b %Y")
+            csv_date = parsed.dt.date.max().strftime("%d %b %Y")
         except Exception:
             csv_date = datetime.today().strftime("%d %b %Y")
     else:
