@@ -17,11 +17,19 @@ html, body, [class*="css"], .stApp {
 section[data-testid="stSidebar"] {
     background: #1C1C1E !important;
     border-right: 1px solid #38383A !important;
+    width: 220px !important;
     min-width: 220px !important;
-    max-width: 220px !important;
+}
+section[data-testid="stSidebar"][aria-expanded="false"] {
+    margin-left: 0 !important;
+    width: 220px !important;
+    min-width: 220px !important;
 }
 section[data-testid="stSidebar"] > div { padding-top: 0 !important; }
-[data-testid="collapsedControl"] { display: none !important; }
+[data-testid="collapsedControl"] { 
+    color: #0A84FF !important; 
+    background: #1C1C1E !important;
+}
 [data-testid="stSidebarNav"] { padding-top: 0 !important; }
 [data-testid="stSidebarNav"] a {
     color: #8E8E93 !important;
