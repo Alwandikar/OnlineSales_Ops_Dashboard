@@ -3,206 +3,220 @@ app.py — DSG Online Sales Team · Overview
 """
 import streamlit as st
 import plotly.graph_objects as go
+from datetime import date
 
 from utils.constants import (
     ADMIN_PASSWORD, CAMPAIGN_CONFIG,
-    DSG_GOLD, FONT, GRID, TXTC,
+    ACCENT_BLUE, FONT, GRID, TXTC,
 )
-from utils.data import (
-    campaign_totals, load_raw_cache,
-    process_csv, save_cache,
-    summarise_raw, format_duration,
-)
+from utils.data import parse_intalk_csv, build_summary, filter_by_dates, campaign_totals, format_duration
+from utils.github_store import load_data, append_day
 from utils.styles import inject_css
 from utils.components import (
-    agent_bar_chart, connect_pct_bar, disposition_donut,
-    empty_state, kpi_card, render_agent_summary_table,
-    section_label, top_nav,
+    agent_bar_chart, contact_rate_bar, donut_chart,
+    empty_state, kpi_card, agent_table,
+    render_date_filter, section_label, sidebar_nav, top_nav,
 )
 
 st.set_page_config(
-    page_title="DSG Online Sales Team · Overview",
+    page_title="DSG Online Sales · Overview",
     page_icon="https://www.dreamsetgo.com/DreamSetGo-48x48.png",
-    layout="wide", initial_sidebar_state="collapsed",
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 inject_css()
 
-# ── Session state defaults ────────────────────────────────────────────────────
-if "admin_unlocked" not in st.session_state:
-    st.session_state.admin_unlocked = False
-if "pw_error" not in st.session_state:
-    st.session_state.pw_error = False
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+sidebar_nav()
 
-# ── Admin panel ───────────────────────────────────────────────────────────────
-with st.expander("🔒 Admin — Upload Data", expanded=False):
-    if not st.session_state.admin_unlocked:
-        st.markdown(
-            "<div class='admin-box'><div class='admin-box-title'>Admin Access Required</div>",
-            unsafe_allow_html=True,
-        )
-        pw = st.text_input("Password", type="password", key="pw_input")
-        if st.button("Unlock", key="unlock_btn"):
-            if pw == ADMIN_PASSWORD:
-                st.session_state.admin_unlocked = True
-                st.session_state.pw_error = False
+with st.sidebar:
+    st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+
+    # Upload button — opens expander
+    with st.expander("⬆️ Upload Data", expanded=False):
+        if "admin_open" not in st.session_state:
+            st.session_state.admin_open = False
+
+        pw = st.text_input("Admin password", type="password", key="sidebar_pw",
+                           label_visibility="collapsed",
+                           placeholder="Enter admin password")
+
+        if not st.session_state.get("admin_auth"):
+            if st.button("Unlock", key="sidebar_unlock", use_container_width=True):
+                if pw == ADMIN_PASSWORD:
+                    st.session_state.admin_auth = True
+                    st.rerun()
+                else:
+                    st.error("Wrong password")
+        else:
+            st.success("✅ Access granted")
+            uploaded = st.file_uploader("Choose InTalk CSV", type=["csv"],
+                                        label_visibility="collapsed")
+            if uploaded:
+                st.session_state["pending_file"] = uploaded.read()
+                st.session_state["pending_name"] = uploaded.name
+
+            if st.session_state.get("pending_file"):
+                if st.button("📤 Upload & Refresh", key="upload_btn",
+                             use_container_width=True, type="primary"):
+                    with st.spinner("Processing..."):
+                        try:
+                            raw_df, report_date, warnings = parse_intalk_csv(
+                                st.session_state["pending_file"]
+                            )
+                            ok, msg = append_day(raw_df, report_date)
+                            if ok:
+                                # Clear pending and cached data
+                                del st.session_state["pending_file"]
+                                del st.session_state["pending_name"]
+                                st.session_state["admin_auth"] = False
+                                st.session_state["upload_msg"] = msg
+                                for w in warnings:
+                                    st.warning(w)
+                                st.switch_page("app.py")
+                            else:
+                                st.error(msg)
+                        except Exception as e:
+                            st.error(f"Error: {e}")
+
+            if st.button("🔒 Lock", key="sidebar_lock", use_container_width=True):
+                st.session_state.admin_auth = False
                 st.rerun()
-            else:
-                st.session_state.pw_error = True
-        if st.session_state.pw_error:
-            st.error("Incorrect password.")
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        st.success("✅ Admin access granted")
-        uploaded = st.file_uploader("Upload InTalk CSV", type=["csv"])
-        if uploaded is not None:
-            try:
-                file_bytes = uploaded.read()
-                new_df, new_raw, new_date, warnings = process_csv(file_bytes, uploaded.name)
-                save_cache(new_df, new_raw, new_date)
-                for w in warnings:
-                    st.warning(f"⚠️ {w}")
-                st.success(f"✅ Data loaded for {new_date}!")
-                # Store in session state so next rerun picks it up immediately
-                st.session_state["_uploaded_raw"]  = new_raw
-                st.session_state["_uploaded_date"] = new_date
-                st.rerun()
-            except ValueError as e:
-                st.error(f"❌ CSV format error: {e}")
-            except Exception as e:
-                st.error(f"❌ Unexpected error: {e}")
-        if st.button("🔒 Lock Admin", key="lock_btn"):
-            st.session_state.admin_unlocked = False
-            st.rerun()
 
-# ── Load data — session state first, then JSON cache ─────────────────────────
-if "_uploaded_raw" in st.session_state:
-    raw_df      = st.session_state["_uploaded_raw"]
-    cached_date = st.session_state["_uploaded_date"]
-else:
-    raw_df, cached_date = load_raw_cache()
+    # Show upload success message
+    if st.session_state.get("upload_msg"):
+        st.success(st.session_state.pop("upload_msg"))
 
-nav_subtitle = f"Dashboard · {cached_date}" if cached_date else "Dashboard"
-top_nav(subtitle=nav_subtitle, page_tag="Overview")
+# ── Load data ─────────────────────────────────────────────────────────────────
+all_data = load_data()
 
-# ── Empty state ───────────────────────────────────────────────────────────────
-if raw_df is None or len(raw_df) == 0:
-    empty_state(title="No data loaded yet", sub="Admin needs to upload the InTalk CSV above.")
+nav_sub = "Dashboard"
+if not all_data.empty and "Date" in all_data.columns:
+    max_date = all_data["Date"].max()
+    nav_sub  = f"Last updated: {max_date.strftime('%d %b %Y') if hasattr(max_date,'strftime') else max_date}"
+
+top_nav(subtitle=nav_sub, page_tag="Overview")
+
+# ── Date filter ───────────────────────────────────────────────────────────────
+from_date, to_date = render_date_filter("overview")
+
+# ── Filter data ───────────────────────────────────────────────────────────────
+if all_data.empty:
+    empty_state(
+        title="No data yet",
+        sub="Click '⬆️ Upload Data' in the sidebar to load your first CSV.",
+        icon="📊",
+    )
     st.stop()
 
-# ── Build summary ─────────────────────────────────────────────────────────────
-agent_df = summarise_raw(raw_df)
+filtered = filter_by_dates(all_data, from_date, to_date)
 
-if agent_df.empty:
-    empty_state(title="No data found", sub="Upload a valid CSV above.")
+if filtered.empty:
+    empty_state(
+        title="No data for this date range",
+        sub="Try a wider range or click 'All Data'.",
+        icon="📅",
+    )
     st.stop()
+
+agent_df = build_summary(filtered)
 
 # ── Overall KPIs ──────────────────────────────────────────────────────────────
 total_att  = int(agent_df["Attempts"].sum())
 total_cont = int(agent_df["Contacted"].sum())
 total_nc   = int(agent_df["NotContacted"].sum())
-total_pct  = round(total_cont / total_att * 100, 1) if total_att else 0.0
-total_talk = float(agent_df["TalkTimeSecs"].sum()) if "TalkTimeSecs" in agent_df.columns else 0.0
+total_pct  = round(total_cont/total_att*100,1) if total_att else 0.0
+total_talk = float(agent_df["TalkTimeSecs"].sum())
 
-section_label("Overall Team Performance", margin_top="0")
-o1, o2, o3, o4, o5 = st.columns(5)
-with o1: st.markdown(kpi_card("Total Attempts",  f"{total_att:,}",  "All agents",              "📞", "#6366F1"),                      unsafe_allow_html=True)
-with o2: st.markdown(kpi_card("Total Contacted", f"{total_cont:,}", "Line answered / reached", "✅", "#047857", "kpi-value-green"),    unsafe_allow_html=True)
-with o3: st.markdown(kpi_card("Not Contacted",   f"{total_nc:,}",   "No answer / DNC / Redial","📵", "#B91C1C", "kpi-value-red"),      unsafe_allow_html=True)
-with o4: st.markdown(kpi_card("Contact Rate",    f"{total_pct}%",   "Contacted ÷ Attempts",    "📈", DSG_GOLD,  "kpi-value-gold"),     unsafe_allow_html=True)
-with o5: st.markdown(kpi_card("Total Talk Time", format_duration(total_talk), "Calls > 0s",    "🎙️", "#0047CC", "kpi-value-blue"),     unsafe_allow_html=True)
+section_label("Overall Team Performance", mt="0")
+c1,c2,c3,c4,c5 = st.columns(5)
+with c1: st.markdown(kpi_card("Total Attempts",  f"{total_att:,}",  "All agents",             "📞","#6366F1"),                        unsafe_allow_html=True)
+with c2: st.markdown(kpi_card("Total Contacted", f"{total_cont:,}", "Line answered",          "✅","#30D158","kpi-value-green"),       unsafe_allow_html=True)
+with c3: st.markdown(kpi_card("Not Contacted",   f"{total_nc:,}",   "No answer/DNC",          "📵","#FF453A","kpi-value-red"),         unsafe_allow_html=True)
+with c4: st.markdown(kpi_card("Contact Rate",    f"{total_pct}%",   "Contacted ÷ Attempts",   "📈","#0A84FF","kpi-value-blue"),        unsafe_allow_html=True)
+with c5: st.markdown(kpi_card("Talk Time",       format_duration(total_talk),"Calls > 0s",    "🎙️","#FFD60A","kpi-value-gold"),       unsafe_allow_html=True)
 
-# ── All agents contact rate bar ───────────────────────────────────────────────
+# ── All agents bar ────────────────────────────────────────────────────────────
 section_label("All Agents · Contact Rate")
 all_sorted = agent_df.sort_values("Contact %", ascending=False)
 
-fig_all = go.Figure()
-for camp_name, camp_cfg in CAMPAIGN_CONFIG.items():
-    camp_data = all_sorted[all_sorted["Campaign"] == camp_name]
-    if camp_data.empty:
-        continue
-    fig_all.add_trace(go.Bar(
-        name=f"{camp_cfg['emoji']} {camp_name}",
-        x=camp_data["Agent"], y=camp_data["Contact %"],
-        marker_color=camp_cfg["accent"], marker_line_width=0,
-        text=[f"{v}%" for v in camp_data["Contact %"]],
-        textposition="outside",
-        textfont=dict(size=11, family=FONT, color="#0A0E1A"),
-        hovertemplate="<b>%{x}</b><br>Campaign: " + camp_name + "<br>Contact: %{y}%<extra></extra>",
-    ))
+fig = go.Figure()
+for camp, cfg in CAMPAIGN_CONFIG.items():
+    cd = all_sorted[all_sorted["Campaign"]==camp]
+    if cd.empty: continue
+    fig.add_trace(go.Bar(
+        name=f"{cfg['emoji']} {camp}",
+        x=cd["Agent"], y=cd["Contact %"],
+        marker_color=cfg["accent"], marker_line_width=0,
+        text=[f"{v}%" for v in cd["Contact %"]], textposition="outside",
+        textfont=dict(size=11,family=FONT,color="#FFFFFF"),
+        hovertemplate=f"<b>%{{x}}</b><br>{camp}: %{{y}}%<extra></extra>"))
 
-fig_all.add_shape(type="line", x0=-.5, x1=len(all_sorted)-.5, y0=50, y1=50,
-                  line=dict(color="#D1D5DB", dash="dot", width=1.5))
-fig_all.add_annotation(x=len(all_sorted)-.5, y=50, text="50% benchmark",
-    showarrow=False, font=dict(size=9, color="#9CA3AF"), xanchor="right", yanchor="bottom")
-
-max_y = max(agent_df["Contact %"].max() + 18, 70) if not agent_df.empty else 70
-fig_all.update_layout(
+fig.add_shape(type="line", x0=-.5, x1=len(all_sorted)-.5, y0=50, y1=50,
+              line=dict(color="#48484A",dash="dot",width=1.5))
+fig.add_annotation(x=len(all_sorted)-.5, y=50, text="50% target",
+    showarrow=False, font=dict(size=9,color="#636366"), xanchor="right", yanchor="bottom")
+max_y = max(all_sorted["Contact %"].max()+18, 70) if not all_sorted.empty else 70
+fig.update_layout(
     paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-    font_family=FONT, font_color="#0A0E1A",
-    margin=dict(l=0, r=0, t=10, b=0), height=280,
-    legend=dict(orientation="h", yanchor="bottom", y=1.01,
-                xanchor="right", x=1, font_size=11, bgcolor="rgba(0,0,0,0)"),
-    yaxis=dict(range=[0, max_y], showgrid=True, gridcolor=GRID, zeroline=False,
-               ticksuffix="%", tickfont=dict(size=10, color=TXTC)),
-    xaxis=dict(showgrid=False, tickfont=dict(size=12, color="#0A0E1A")),
+    font_family=FONT, font_color="#FFFFFF",
+    margin=dict(l=0,r=0,t=10,b=0), height=270,
+    legend=dict(orientation="h",yanchor="bottom",y=1.01,xanchor="right",x=1,
+                font_size=11,bgcolor="rgba(0,0,0,0)"),
+    yaxis=dict(range=[0,max_y],showgrid=True,gridcolor=GRID,zeroline=False,
+               ticksuffix="%",tickfont=dict(size=10,color=TXTC)),
+    xaxis=dict(showgrid=False,tickfont=dict(size=12,color="#FFFFFF")),
 )
-st.plotly_chart(fig_all, use_container_width=True, config={"displayModeBar": False})
+st.plotly_chart(fig, use_container_width=True, config={"displayModeBar":False})
 
 
 # ── Campaign renderer ─────────────────────────────────────────────────────────
 def render_campaign(df, campaign):
     cfg    = CAMPAIGN_CONFIG[campaign]
     accent = cfg["accent"]
-    chip   = cfg["chip_class"]
+    chip   = cfg["chip"]
     emoji  = cfg["emoji"]
-
-    att, cont, not_cont, pct, talk = campaign_totals(df, campaign)
-    sub = df[df["Campaign"] == campaign]
+    t      = campaign_totals(df, campaign)
+    sub    = df[df["Campaign"]==campaign]
 
     st.markdown(f"""<div class="campaign-block">
-        <div class="campaign-chip {chip}">{emoji}&nbsp; {campaign} Campaign</div>
+        <div class="campaign-chip {chip}">{emoji} {campaign}</div>
         <div class="campaign-name">{campaign} Team</div>
-        <div class="campaign-desc">{len(sub)} agents &nbsp;·&nbsp; {att:,} total attempts</div>
+        <div class="campaign-desc">{len(sub)} agents · {t['att']:,} attempts</div>
     </div>""", unsafe_allow_html=True)
 
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1: st.markdown(kpi_card("Attempts",      f"{att:,}",            "Total calls",          "📞", accent),                     unsafe_allow_html=True)
-    with c2: st.markdown(kpi_card("Contacted",     f"{cont:,}",           "Line answered",        "✅", accent, "kpi-value-green"),   unsafe_allow_html=True)
-    with c3: st.markdown(kpi_card("Not Contacted", f"{not_cont:,}",       "No answer / DNC",      "📵", "#B91C1C", "kpi-value-red"),  unsafe_allow_html=True)
-    with c4: st.markdown(kpi_card("Contact Rate",  f"{pct}%",             "Contacted ÷ Attempts", "📈", DSG_GOLD, "kpi-value-gold"),  unsafe_allow_html=True)
-    with c5: st.markdown(kpi_card("Talk Time",     format_duration(talk), "Calls with duration>0","🎙️", "#0047CC", "kpi-value-blue"), unsafe_allow_html=True)
+    k1,k2,k3,k4,k5 = st.columns(5)
+    with k1: st.markdown(kpi_card("Attempts",     f"{t['att']:,}",          "Total calls",          "📞",accent),                      unsafe_allow_html=True)
+    with k2: st.markdown(kpi_card("Contacted",    f"{t['cont']:,}",         "Line answered",        "✅",accent,"kpi-value-green"),     unsafe_allow_html=True)
+    with k3: st.markdown(kpi_card("Not Contacted",f"{t['nc']:,}",           "No answer/DNC",        "📵","#FF453A","kpi-value-red"),    unsafe_allow_html=True)
+    with k4: st.markdown(kpi_card("Contact Rate", f"{t['pct']}%",           "Contacted ÷ Attempts", "📈","#0A84FF","kpi-value-blue"),   unsafe_allow_html=True)
+    with k5: st.markdown(kpi_card("Talk Time",    format_duration(t['talk']),"Calls > 0s",          "🎙️","#FFD60A","kpi-value-gold"),  unsafe_allow_html=True)
 
-    st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
-    left, mid, right = st.columns([2.2, 1.8, 1])
-    with left:
-        section_label("Contacted vs Not Contacted · by Agent")
-        st.plotly_chart(agent_bar_chart(sub, accent), use_container_width=True, config={"displayModeBar": False})
-    with mid:
-        section_label("Contact Rate · by Agent")
-        st.plotly_chart(connect_pct_bar(sub), use_container_width=True, config={"displayModeBar": False})
-    with right:
+    st.markdown("<div style='height:.9rem'></div>", unsafe_allow_html=True)
+    l, m, r = st.columns([2.2,1.8,1])
+    with l:
+        section_label("Contacted vs Not Contacted")
+        st.plotly_chart(agent_bar_chart(sub,accent), use_container_width=True, config={"displayModeBar":False})
+    with m:
+        section_label("Contact Rate by Agent")
+        st.plotly_chart(contact_rate_bar(sub), use_container_width=True, config={"displayModeBar":False})
+    with r:
         section_label("Outcome Split")
-        st.plotly_chart(disposition_donut(att, cont, not_cont, accent), use_container_width=True, config={"displayModeBar": False})
-        st.markdown(
-            "<div style='text-align:center;font-size:.65rem;color:#9CA3AF;font-weight:700;"
-            "letter-spacing:.08em;text-transform:uppercase;margin-top:-.4rem'>Contact Rate</div>",
-            unsafe_allow_html=True,
-        )
+        st.plotly_chart(donut_chart(t['att'],t['cont'],t['nc'],accent), use_container_width=True, config={"displayModeBar":False})
+        st.markdown("<div style='text-align:center;font-size:.62rem;color:#636366;font-weight:600;"
+                    "letter-spacing:.07em;text-transform:uppercase;margin-top:-.3rem'>Contact Rate</div>",
+                    unsafe_allow_html=True)
 
-    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
     section_label("Agent Breakdown")
-    render_agent_summary_table(sub)
+    agent_table(sub)
 
 
-# ── Campaign tabs ─────────────────────────────────────────────────────────────
-st.markdown("<hr class='dash-divider'>", unsafe_allow_html=True)
+# ── Tabs ──────────────────────────────────────────────────────────────────────
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
 section_label("Campaign Breakdown")
+tab_s, tab_h = st.tabs(["🏅  Sports", "🏖️  Holiday"])
+with tab_s: render_campaign(agent_df, "Sports")
+with tab_h: render_campaign(agent_df, "Holiday")
 
-tab_sports, tab_holiday = st.tabs(["🏅  Sports", "🏖️  Holiday"])
-with tab_sports:
-    render_campaign(agent_df, "Sports")
-with tab_holiday:
-    render_campaign(agent_df, "Holiday")
-
-with st.expander("🗂  Raw data"):
+with st.expander("🗂 Raw data"):
     st.dataframe(agent_df, use_container_width=True, hide_index=True)

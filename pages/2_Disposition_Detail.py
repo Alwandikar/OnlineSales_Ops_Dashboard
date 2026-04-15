@@ -4,43 +4,59 @@ pages/2_Disposition_Detail.py — DSG Online Sales Team · Disposition Detail
 import streamlit as st
 
 from utils.constants import AGENT_CAMPAIGN_MAP, ALL_DISPOSITIONS, CAMPAIGN_CONFIG
-from utils.data import load_raw_cache
+from utils.data import filter_by_dates, build_summary
+from utils.github_store import load_data
 from utils.styles import inject_css
 from utils.components import (
-    agent_disposition_bar, disp_card, disposition_stacked_bar,
-    empty_state, render_disposition_table,
-    section_label, top_nav,
+    agent_disp_bar, disp_card, disposition_stacked_bar,
+    disp_table, empty_state, render_date_filter,
+    section_label, sidebar_nav, top_nav,
 )
 
-st.set_page_config(page_title="DSG Sales · Disposition Detail", page_icon="📋",
-                   layout="wide", initial_sidebar_state="collapsed")
+st.set_page_config(
+    page_title="DSG Online Sales · Disposition Detail",
+    page_icon="📋",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 inject_css()
 
-# Load from session state first (freshest), then JSON cache
-if "_uploaded_raw" in st.session_state:
-    import pandas as pd
-    raw_df      = st.session_state["_uploaded_raw"]
-    cached_date = st.session_state.get("_uploaded_date", "")
-else:
-    raw_df, cached_date = load_raw_cache()
+# ── Sidebar ───────────────────────────────────────────────────────────────────
+sidebar_nav()
 
-nav_subtitle = f"Dashboard · {cached_date}" if cached_date else "Dashboard"
-top_nav(subtitle=nav_subtitle, page_tag="Disposition Detail")
+# ── Load data ─────────────────────────────────────────────────────────────────
+all_data = load_data()
 
-if raw_df is None or (hasattr(raw_df, 'empty') and raw_df.empty):
-    empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview page.")
+nav_sub = "Dashboard"
+if not all_data.empty and "Date" in all_data.columns:
+    max_date = all_data["Date"].max()
+    nav_sub  = f"Last updated: {max_date.strftime('%d %b %Y') if hasattr(max_date,'strftime') else max_date}"
+
+top_nav(subtitle=nav_sub, page_tag="Disposition Detail")
+
+if all_data.empty:
+    empty_state(title="No data yet", sub="Upload a CSV via the sidebar on the Overview page.")
     st.stop()
 
-# Campaign filter
-section_label("Filter by Campaign", margin_top="0")
-camp_filter = st.radio("Campaign", ["All Campaigns", "Sports", "Holiday"],
+# ── Date filter ───────────────────────────────────────────────────────────────
+from_date, to_date = render_date_filter("disp")
+
+raw_df = filter_by_dates(all_data, from_date, to_date)
+
+if raw_df.empty:
+    empty_state(title="No data for this range", sub="Try a wider date range.", icon="📅")
+    st.stop()
+
+# ── Campaign filter ───────────────────────────────────────────────────────────
+section_label("Filter by Campaign", mt="0")
+camp_filter = st.radio("Campaign", ["All", "Sports", "Holiday"],
                        horizontal=True, label_visibility="collapsed")
-if camp_filter != "All Campaigns":
+if camp_filter != "All":
     raw_df = raw_df[raw_df["Campaign"] == camp_filter]
 
 total_rows = len(raw_df)
 
-# Disposition summary cards
+# ── Disposition summary cards ─────────────────────────────────────────────────
 section_label("Overall Disposition Breakdown")
 cols = st.columns(len(ALL_DISPOSITIONS))
 for i, disp in enumerate(ALL_DISPOSITIONS):
@@ -49,7 +65,7 @@ for i, disp in enumerate(ALL_DISPOSITIONS):
     with cols[i]:
         st.markdown(disp_card(disp, count, pct), unsafe_allow_html=True)
 
-# Stacked bar
+# ── Stacked bar ───────────────────────────────────────────────────────────────
 section_label("Disposition Mix · All Agents")
 pivot = raw_df.groupby(["Agent","Disposition"]).size().unstack(fill_value=0)
 for d in ALL_DISPOSITIONS:
@@ -58,25 +74,26 @@ pivot = pivot[ALL_DISPOSITIONS]
 pivot = pivot.loc[pivot.sum(axis=1).sort_values(ascending=False).index]
 st.plotly_chart(
     disposition_stacked_bar(pivot),
-    use_container_width=True, config={"displayModeBar": False},
+    use_container_width=True,
+    config={"displayModeBar": False},
 )
 
-# Agent × Disposition table
+# ── Agent × Disposition table ─────────────────────────────────────────────────
 section_label("Agent × Disposition Table")
-table_pivot = render_disposition_table(raw_df, AGENT_CAMPAIGN_MAP)
+table_pivot = disp_table(raw_df, AGENT_CAMPAIGN_MAP)
 
-# Per-agent breakdown
-st.markdown("<hr class='dash-divider'>", unsafe_allow_html=True)
-section_label("Per-Agent Disposition Detail")
+# ── Per-agent detail ──────────────────────────────────────────────────────────
+st.markdown("<hr class='divider'>", unsafe_allow_html=True)
+section_label("Per-Agent Breakdown")
 
 for agent in table_pivot.index.tolist():
     campaign = AGENT_CAMPAIGN_MAP.get(agent, "Unknown")
-    cfg      = CAMPAIGN_CONFIG.get(campaign, {"chip_class": "chip-holiday", "emoji": "❓"})
+    cfg      = CAMPAIGN_CONFIG.get(campaign, {"chip": "chip-holiday", "emoji": "❓"})
     total    = int(table_pivot.loc[agent, "Total"])
 
     st.markdown(f"""<div class="agent-section">
-        <div class="agent-name-header">{agent}</div>
-        <div class="agent-camp-chip {cfg['chip_class']}">{cfg['emoji']} {campaign}</div>
+        <div class="agent-name">{agent}</div>
+        <div class="agent-chip {cfg['chip']}">{cfg['emoji']} {campaign}</div>
     """, unsafe_allow_html=True)
 
     dcols = st.columns(len(ALL_DISPOSITIONS))
@@ -86,11 +103,12 @@ for agent in table_pivot.index.tolist():
         with dcols[i]:
             st.markdown(disp_card(disp, count, pct, small=True), unsafe_allow_html=True)
 
-    st.markdown("<div style='height:.7rem'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
     counts = [int(table_pivot.loc[agent, d]) for d in ALL_DISPOSITIONS]
     pcts   = [round(c/total*100,1) if total else 0.0 for c in counts]
     st.plotly_chart(
-        agent_disposition_bar(agent, counts, pcts),
-        use_container_width=True, config={"displayModeBar": False},
+        agent_disp_bar(agent, counts, pcts),
+        use_container_width=True,
+        config={"displayModeBar": False},
     )
     st.markdown("</div>", unsafe_allow_html=True)

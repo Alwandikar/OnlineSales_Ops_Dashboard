@@ -1,18 +1,17 @@
-# utils/constants.py
+# utils/constants.py — Single source of truth
 
 ADMIN_PASSWORD = "CSonline2026"
 
-CACHE_FILE     = "last_data.json"
-CACHE_RAW_FILE = "last_raw.json"
+# GitHub storage
+GITHUB_REPO     = "Alwandikar/OnlineSales_Ops_Dashboard"
+GITHUB_DATA_PATH = "data/sales_data.csv"
 
-TEST_AGENT_NAMES = {"testagent", "test_agent", "test agent", "test"}
-
+# Agents & campaigns
 CAMPAIGNS = {
     "Sports":  ["Kishan", "Dilip", "Dilipsingh", "Melito", "Gibson", "Gideon"],
     "Holiday": ["Vinay", "Brendan", "Ajinkya", "Khushbu"],
 }
-
-AGENT_CAMPAIGN_MAP = {agent: camp for camp, agents in CAMPAIGNS.items() for agent in agents}
+AGENT_CAMPAIGN_MAP = {a: c for c, agents in CAMPAIGNS.items() for a in agents}
 
 CSV_CAMPAIGN_MAP = {
     "Dsg_PreviewAuto":     "Sports",
@@ -20,27 +19,21 @@ CSV_CAMPAIGN_MAP = {
     "Holiday_Churn":       "Holiday",
 }
 
-ALL_DISPOSITIONS = [
-    "Followup",
-    "Information Shared",
-    "Quote Sent",
-    "Junk",
-    "Lost",
-    "Not Contactable",
-]
+TEST_AGENT_NAMES = {"testagent", "test_agent", "test agent", "test"}
 
+# Dispositions
+ALL_DISPOSITIONS = ["Followup", "Information Shared", "Quote Sent", "Junk", "Lost", "Not Contactable"]
 CONTACTED_DISPOSITIONS     = {"Followup", "Information Shared", "Quote Sent", "Junk", "Lost"}
 NOT_CONTACTED_DISPOSITIONS = {"Not Contactable"}
 
 DISP_COLORS = {
-    "Followup":          "#0047CC",
-    "Information Shared":"#047857",
-    "Quote Sent":        "#6D28D9",
-    "Junk":              "#B45309",
-    "Lost":              "#B91C1C",
-    "Not Contactable":   "#6B7280",
+    "Followup":          "#0A84FF",
+    "Information Shared":"#30D158",
+    "Quote Sent":        "#BF5AF2",
+    "Junk":              "#FF9F0A",
+    "Lost":              "#FF453A",
+    "Not Contactable":   "#636366",
 }
-
 DISP_ICONS = {
     "Followup":          "🔄",
     "Information Shared":"ℹ️",
@@ -51,31 +44,22 @@ DISP_ICONS = {
 }
 
 CAMPAIGN_CONFIG = {
-    "Sports": {
-        "accent":     "#0047CC",
-        "chip_class": "chip-sports",
-        "emoji":      "🏅",
-    },
-    "Holiday": {
-        "accent":     "#047857",
-        "chip_class": "chip-holiday",
-        "emoji":      "🏖️",
-    },
+    "Sports":  {"accent": "#0A84FF", "chip": "chip-sports",  "emoji": "🏅"},
+    "Holiday": {"accent": "#30D158", "chip": "chip-holiday", "emoji": "🏖️"},
 }
 
-# ── DSG Brand tokens ──────────────────────────────────────────────────────────
-# Extracted from dreamsetgo.com: dark navy nav, white surface, gold accent
-DSG_NAVY   = "#0A0E1A"   # top nav / sidebar
-DSG_GOLD   = "#C9A035"   # primary accent (buttons, active tabs, highlights)
-DSG_GOLD_L = "#E8BE52"   # hover gold
-DSG_WHITE  = "#FFFFFF"
-DSG_BG     = "#F5F6F8"   # page background
-DSG_CARD   = "#FFFFFF"   # card background
-DSG_BORDER = "#E2E5EC"
-DSG_TEXT   = "#0A0E1A"   # primary text
-DSG_MUTED  = "#6B7280"   # secondary text
-DSG_SUBTLE = "#9CA3AF"   # labels
-
-FONT  = "DM Sans, sans-serif"
-GRID  = "#F0F2F5"
-TXTC  = "#6B7280"
+# iOS dark theme tokens
+BG_BASE      = "#000000"
+BG_CARD      = "#1C1C1E"
+BG_ELEVATED  = "#2C2C2E"
+BG_SEPARATOR = "#38383A"
+TXT_PRIMARY  = "#FFFFFF"
+TXT_SECONDARY= "#EBEBF5"
+TXT_MUTED    = "#8E8E93"
+ACCENT_BLUE  = "#0A84FF"
+ACCENT_GREEN = "#30D158"
+ACCENT_RED   = "#FF453A"
+ACCENT_GOLD  = "#FFD60A"
+FONT         = "SF Pro Display, -apple-system, BlinkMacSystemFont, sans-serif"
+GRID         = "#2C2C2E"
+TXTC         = "#8E8E93"

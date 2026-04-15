@@ -1,4 +1,4 @@
-# utils/components.py
+# utils/components.py — Reusable UI components and charts
 
 from datetime import date, timedelta
 import plotly.graph_objects as go
@@ -6,125 +6,69 @@ import streamlit as st
 
 from utils.constants import (
     ALL_DISPOSITIONS, DISP_COLORS, DISP_ICONS,
-    DSG_NAVY, DSG_GOLD, DSG_BORDER,
-    FONT, GRID, TXTC,
+    ACCENT_BLUE, FONT, GRID, TXTC,
+    BG_CARD, BG_ELEVATED,
 )
-from utils.data import format_duration, get_mtd_range
-
-
-# ── Date filter ───────────────────────────────────────────────────────────────
-
-def render_date_filter() -> tuple:
-    """
-    Date range filter with From, To, quick buttons, and a Submit button.
-    Uses session_state so all 3 pages share the same active range.
-    Returns (from_date, to_date) — only changes when Submit is clicked.
-    """
-    today = date.today()
-    mtd_from, mtd_to = get_mtd_range()
-
-    # Always reset to MTD on fresh load (no applied dates in session)
-    if "date_from_applied" not in st.session_state:
-        st.session_state["date_from_applied"] = mtd_from
-        st.session_state["date_to_applied"]   = mtd_to
-    if "date_from" not in st.session_state:
-        st.session_state["date_from"] = mtd_from
-    if "date_to" not in st.session_state:
-        st.session_state["date_to"] = mtd_to
-
-    # Quick-select buttons update staging values and auto-apply
-    col_label, col_mtd, col_all, col_spacer = st.columns([1, 1.2, 1.2, 6])
-    with col_label:
-        st.markdown(
-            "<div style='padding-top:.55rem;font-size:.68rem;font-weight:700;"
-            "letter-spacing:.1em;text-transform:uppercase;color:#9CA3AF'>📅 Date Range</div>",
-            unsafe_allow_html=True,
-        )
-    with col_mtd:
-        if st.button("This Month", key="btn_mtd", use_container_width=True):
-            st.session_state["date_from"]         = mtd_from
-            st.session_state["date_to"]           = mtd_to
-            st.session_state["date_from_applied"] = mtd_from
-            st.session_state["date_to_applied"]   = mtd_to
-            st.rerun()
-    with col_all:
-        if st.button("All Data", key="btn_all", use_container_width=True):
-            st.session_state["date_from"]         = date(2025, 1, 1)
-            st.session_state["date_to"]           = today
-            st.session_state["date_from_applied"] = date(2025, 1, 1)
-            st.session_state["date_to_applied"]   = today
-            st.rerun()
-
-    # From / To pickers + Submit
-    c_from, c_to, c_submit = st.columns([2, 2, 1])
-    with c_from:
-        from_staging = st.date_input(
-            "From", value=st.session_state["date_from"],
-            min_value=date(2025, 1, 1), max_value=today,
-            key="di_from", label_visibility="visible",
-        )
-    with c_to:
-        max_to    = min(today, from_staging + timedelta(days=30))
-        to_staging = st.session_state["date_to"]
-        if to_staging > max_to: to_staging = max_to
-        to_staging = st.date_input(
-            "To", value=to_staging,
-            min_value=from_staging, max_value=max_to,
-            key="di_to", label_visibility="visible",
-        )
-    with c_submit:
-        st.markdown("<div style='height:1.75rem'></div>", unsafe_allow_html=True)
-        if st.button("Apply ✓", key="btn_apply", use_container_width=True, type="primary"):
-            st.session_state["date_from"]         = from_staging
-            st.session_state["date_to"]           = to_staging
-            st.session_state["date_from_applied"] = from_staging
-            st.session_state["date_to_applied"]   = to_staging
-            st.rerun()
-
-    # Always stage the picker values (even before Apply)
-    st.session_state["date_from"] = from_staging
-    st.session_state["date_to"]   = to_staging
-
-    # Use the last *applied* values for actual filtering
-    from_date = st.session_state["date_from_applied"]
-    to_date   = st.session_state["date_to_applied"]
-
-    days = (to_date - from_date).days + 1
-    st.markdown(
-        f'<div class="date-banner">📅 &nbsp;Showing &nbsp;'
-        f'<strong>{from_date.strftime("%d %b %Y")}</strong>'
-        f'&nbsp;→&nbsp;<strong>{to_date.strftime("%d %b %Y")}</strong>'
-        f'&nbsp;&nbsp;({days} day{"s" if days != 1 else ""})</div>',
-        unsafe_allow_html=True,
-    )
-    return from_date, to_date
-
+from utils.data import format_duration
 
 # ── HTML helpers ──────────────────────────────────────────────────────────────
 
-def kpi_card(label, value, sub_text, icon, accent, value_class=""):
+def top_nav(subtitle: str, page_tag: str):
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;justify-content:space-between;
+         padding:.9rem 0 1.4rem;border-bottom:1px solid #38383A;margin-bottom:1.6rem">
+        <div style="display:flex;align-items:center;gap:.8rem">
+            <img src="https://www.dreamsetgo.com/DreamSetGo-48x48.png"
+                 style="width:34px;height:34px;border-radius:8px;object-fit:contain"/>
+            <div>
+                <div style="font-size:1rem;font-weight:700;color:#FFFFFF;letter-spacing:-.01em">
+                    DSG Online Sales Team</div>
+                <div style="font-size:.7rem;color:#636366">{subtitle}</div>
+            </div>
+        </div>
+        <div style="font-size:.65rem;font-weight:700;letter-spacing:.09em;text-transform:uppercase;
+             padding:.3rem .85rem;border-radius:6px;background:#0A84FF22;
+             color:#0A84FF;border:1px solid #0A84FF44">{page_tag}</div>
+    </div>""", unsafe_allow_html=True)
+
+
+def sidebar_nav():
+    """Render DSG branding in sidebar."""
+    st.sidebar.markdown("""
+    <div style="padding:1.2rem 1rem 1rem;border-bottom:1px solid #38383A;margin-bottom:.5rem">
+        <div style="display:flex;align-items:center;gap:.7rem">
+            <img src="https://www.dreamsetgo.com/DreamSetGo-48x48.png"
+                 style="width:30px;height:30px;border-radius:7px;object-fit:contain"/>
+            <div>
+                <div style="font-size:.85rem;font-weight:700;color:#FFFFFF">DSG Sales</div>
+                <div style="font-size:.65rem;color:#636366">Online Team</div>
+            </div>
+        </div>
+    </div>""", unsafe_allow_html=True)
+
+
+def kpi_card(label, value, sub, icon, accent, value_class=""):
     return f"""<div class="kpi-card">
-        <div class="kpi-accent-bar" style="background:{accent}"></div>
+        <div class="kpi-accent" style="background:{accent}"></div>
         <div class="kpi-icon">{icon}</div>
         <div class="kpi-label">{label}</div>
         <div class="kpi-value {value_class}">{value}</div>
-        <div class="kpi-sub">{sub_text}</div>
+        <div class="kpi-sub">{sub}</div>
     </div>"""
 
 
 def disp_card(disp, count, pct, small=False):
-    count_size = "1.5rem" if small else "1.8rem"
-    icon_size  = ".95rem" if small else "1.2rem"
+    sz = "1.4rem" if small else "1.7rem"
     return f"""<div class="disp-card">
         <div class="disp-accent" style="background:{DISP_COLORS[disp]}"></div>
-        <div style="font-size:{icon_size};margin-bottom:.25rem">{DISP_ICONS[disp]}</div>
+        <div style="font-size:{'1rem' if small else '1.1rem'};margin-bottom:.2rem">{DISP_ICONS[disp]}</div>
         <div class="disp-label">{disp}</div>
-        <div style="font-size:{count_size};font-weight:800;color:#0A0E1A;letter-spacing:-.03em">{count:,}</div>
+        <div style="font-size:{sz};font-weight:700;color:#FFFFFF;letter-spacing:-.02em">{count:,}</div>
         <div class="disp-pct">{pct}%</div>
     </div>"""
 
 
-def empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview page.", icon="📂"):
+def empty_state(title="No data", sub="Upload a CSV to get started.", icon="📊"):
     st.markdown(f"""<div class="empty-state">
         <div class="empty-icon">{icon}</div>
         <div class="empty-title">{title}</div>
@@ -132,111 +76,154 @@ def empty_state(title="No data loaded yet", sub="Upload a CSV on the Overview pa
     </div>""", unsafe_allow_html=True)
 
 
-def top_nav(subtitle, page_tag, **_):
-    st.markdown(f"""<div class="top-nav">
-        <div class="nav-brand">
-            <img src="https://www.dreamsetgo.com/DreamSetGo-48x48.png"
-                 class="nav-logo" alt="DSG"/>
-            <div>
-                <div class="nav-title">DSG Online Sales Team</div>
-                <div class="nav-sub">{subtitle}</div>
-            </div>
-        </div>
-        <div class="nav-tag">{page_tag}</div>
-    </div>""", unsafe_allow_html=True)
+def section_label(text, mt="1.8rem"):
+    st.markdown(f'<p class="section-label" style="margin-top:{mt}">{text}</p>',
+                unsafe_allow_html=True)
 
 
-def section_label(text, margin_top="2rem"):
+# ── Date filter ───────────────────────────────────────────────────────────────
+
+def render_date_filter(page_key: str) -> tuple[date, date]:
+    """
+    Crash-proof date filter with fixed 2026 bounds.
+    page_key ensures each page has independent state.
+    Returns (from_date, to_date) — only changes on Submit.
+    """
+    MIN_DATE = date(2026, 1, 1)
+    MAX_DATE = date(2026, 12, 31)
+    today    = date(2026, 4, 15)  # safe default; overridden by actual data
+
+    from_key = f"applied_from_{page_key}"
+    to_key   = f"applied_to_{page_key}"
+
+    # Default: current month MTD
+    if from_key not in st.session_state:
+        st.session_state[from_key] = date(2026, 4, 1)
+    if to_key not in st.session_state:
+        st.session_state[to_key] = date(2026, 4, 9)
+
+    st.markdown('<div class="date-filter-bar">', unsafe_allow_html=True)
+
+    btn1, btn2, spacer = st.columns([1.2, 1.2, 6])
+    with btn1:
+        if st.button("📅 This Month", key=f"mtd_{page_key}", use_container_width=True):
+            st.session_state[from_key] = date(2026, 4, 1)
+            st.session_state[to_key]   = date(2026, 4, 9)
+            st.rerun()
+    with btn2:
+        if st.button("📋 All Data", key=f"all_{page_key}", use_container_width=True):
+            st.session_state[from_key] = MIN_DATE
+            st.session_state[to_key]   = MAX_DATE
+            st.rerun()
+
+    c1, c2, c3 = st.columns([2, 2, 1])
+    with c1:
+        from_val = st.date_input("From", value=st.session_state[from_key],
+                                 min_value=MIN_DATE, max_value=MAX_DATE,
+                                 key=f"di_from_{page_key}")
+    with c2:
+        to_min = from_val
+        to_max = min(MAX_DATE, from_val + timedelta(days=30))
+        to_val = st.session_state[to_key]
+        if to_val < to_min: to_val = to_min
+        if to_val > to_max: to_val = to_max
+        to_val = st.date_input("To", value=to_val,
+                               min_value=to_min, max_value=to_max,
+                               key=f"di_to_{page_key}")
+    with c3:
+        st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
+        if st.button("Apply ✓", key=f"apply_{page_key}",
+                     use_container_width=True, type="primary"):
+            st.session_state[from_key] = from_val
+            st.session_state[to_key]   = to_val
+            st.rerun()
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    f = st.session_state[from_key]
+    t = st.session_state[to_key]
+    days = (t - f).days + 1
     st.markdown(
-        f'<p class="section-label" style="margin-top:{margin_top}">{text}</p>',
+        f'<div class="date-banner">📅 &nbsp;'
+        f'<strong>{f.strftime("%d %b %Y")}</strong>'
+        f' → <strong>{t.strftime("%d %b %Y")}</strong>'
+        f' &nbsp;({days} day{"s" if days != 1 else ""})</div>',
         unsafe_allow_html=True,
     )
+    return f, t
 
 
 # ── Chart helpers ─────────────────────────────────────────────────────────────
 
-def _base(height=300, **kw):
+def _base(h=300, **kw):
     d = dict(paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-             font_family=FONT, font_color="#0A0E1A",
-             margin=dict(l=0, r=0, t=10, b=0), height=height)
+             font_family=FONT, font_color="#FFFFFF",
+             margin=dict(l=0,r=0,t=10,b=0), height=h)
     d.update(kw)
     return d
 
 
 def pct_color(v):
-    if v >= 60: return "#047857"
-    if v >= 40: return "#B45309"
-    return "#B91C1C"
+    if v >= 60: return "#30D158"
+    if v >= 40: return "#FF9F0A"
+    return "#FF453A"
 
 
 def agent_bar_chart(sub, accent):
     sub = sub.sort_values("Contact %", ascending=True)
     fig = go.Figure()
-    fig.add_trace(go.Bar(
-        name="Contacted", y=sub["Agent"], x=sub["Contacted"], orientation="h",
-        marker_color=accent, marker_line_width=0,
+    fig.add_trace(go.Bar(name="Contacted", y=sub["Agent"], x=sub["Contacted"],
+        orientation="h", marker_color=accent, marker_line_width=0,
         text=sub["Contacted"], textposition="inside",
-        textfont=dict(color="#fff", size=11, family=FONT),
-    ))
-    fig.add_trace(go.Bar(
-        name="Not Contacted", y=sub["Agent"], x=sub["NotContacted"], orientation="h",
-        marker_color="#E5E7EB", marker_line_width=0,
+        textfont=dict(color="#fff", size=11, family=FONT)))
+    fig.add_trace(go.Bar(name="Not Contacted", y=sub["Agent"], x=sub["NotContacted"],
+        orientation="h", marker_color="#2C2C2E", marker_line_width=0,
         text=sub["NotContacted"], textposition="inside",
-        textfont=dict(color="#6B7280", size=11, family=FONT),
-    ))
-    fig.update_layout(**_base(height=max(200, len(sub)*52), showlegend=True), barmode="stack",
+        textfont=dict(color="#8E8E93", size=11, family=FONT)))
+    fig.update_layout(**_base(h=max(200,len(sub)*52), showlegend=True), barmode="stack",
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1,
                     font_size=11, bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=11, color=TXTC)),
-        yaxis=dict(showgrid=False, tickfont=dict(size=12, color="#0A0E1A")),
-    )
+        xaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=11,color=TXTC)),
+        yaxis=dict(showgrid=False, tickfont=dict(size=12,color="#FFFFFF")))
     return fig
 
 
-def connect_pct_bar(sub):
+def contact_rate_bar(sub):
     sub = sub.sort_values("Contact %", ascending=False)
     fig = go.Figure(go.Bar(
         x=sub["Agent"], y=sub["Contact %"],
         marker_color=[pct_color(v) for v in sub["Contact %"]],
         marker_line_width=0,
-        text=[f"{v}%" for v in sub["Contact %"]],
-        textposition="outside",
-        textfont=dict(size=11, family=FONT, color="#0A0E1A"),
-    ))
+        text=[f"{v}%" for v in sub["Contact %"]], textposition="outside",
+        textfont=dict(size=11, family=FONT, color="#FFFFFF")))
     fig.add_shape(type="line", x0=-.5, x1=len(sub)-.5, y0=50, y1=50,
-                  line=dict(color="#D1D5DB", dash="dot", width=1.5))
+                  line=dict(color="#48484A", dash="dot", width=1.5))
     fig.add_annotation(x=len(sub)-.5, y=50, text="50% target", showarrow=False,
-                       font=dict(size=9, color="#9CA3AF"), xanchor="right", yanchor="bottom")
+                       font=dict(size=9, color="#636366"), xanchor="right", yanchor="bottom")
     max_y = max(sub["Contact %"].max()+15, 70) if not sub.empty else 70
-    fig.update_layout(**_base(height=250, showlegend=False, margin=dict(l=0,r=0,t=24,b=0)),
+    fig.update_layout(**_base(h=250, showlegend=False, margin=dict(l=0,r=0,t=24,b=0)),
         yaxis=dict(range=[0,max_y], showgrid=True, gridcolor=GRID, zeroline=False,
-                   ticksuffix="%", tickfont=dict(size=10, color=TXTC)),
-        xaxis=dict(showgrid=False, tickfont=dict(size=12, color="#0A0E1A")),
-    )
+                   ticksuffix="%", tickfont=dict(size=10,color=TXTC)),
+        xaxis=dict(showgrid=False, tickfont=dict(size=12,color="#FFFFFF")))
     return fig
 
 
-def disposition_donut(att, conn, fail, accent):
+def donut_chart(att, cont, nc, accent):
     if att == 0:
         fig = go.Figure(go.Pie(labels=["No data"], values=[1], hole=.62,
-            marker=dict(colors=["#E5E7EB"]), textinfo="none", hoverinfo="skip"))
+            marker=dict(colors=["#2C2C2E"]), textinfo="none", hoverinfo="skip"))
         fig.add_annotation(text="—", x=0.5, y=0.5, showarrow=False,
-                           font=dict(size=22, color="#9CA3AF", family=FONT))
-        fig.update_layout(**_base(height=180, showlegend=False))
+                           font=dict(size=20,color="#636366",family=FONT))
+        fig.update_layout(**_base(h=180, showlegend=False))
         return fig
-    other = max(att - conn - fail, 0)
-    pct   = round(conn / att * 100, 1)
+    pct = round(cont/att*100,1)
     fig = go.Figure(go.Pie(
-        labels=["Contacted","Not Contacted","Other"],
-        values=[conn, fail, other], hole=.62,
-        marker=dict(colors=[accent, "#E5E7EB", "#F3F4F6"],
-                    line=dict(color="#fff", width=2)),
-        textinfo="none",
-        hovertemplate="%{label}: %{value} (%{percent})<extra></extra>",
-    ))
+        labels=["Contacted","Not Contacted"], values=[cont,nc], hole=.62,
+        marker=dict(colors=[accent,"#2C2C2E"], line=dict(color="#000",width=2)),
+        textinfo="none", hovertemplate="%{label}: %{value} (%{percent})<extra></extra>"))
     fig.add_annotation(text=f"<b>{pct}%</b>", x=0.5, y=0.5, showarrow=False,
-                       font=dict(size=20, color="#0A0E1A", family=FONT))
-    fig.update_layout(**_base(height=180, showlegend=False))
+                       font=dict(size=20,color="#FFFFFF",family=FONT))
+    fig.update_layout(**_base(h=180, showlegend=False))
     return fig
 
 
@@ -244,112 +231,94 @@ def disposition_stacked_bar(pivot):
     fig = go.Figure()
     totals = pivot.sum(axis=1)
     for disp in ALL_DISPOSITIONS:
-        col_data = pivot[disp] if disp in pivot.columns else [0]*len(pivot)
-        pcts = (col_data / totals * 100).round(1)
+        col = pivot[disp] if disp in pivot.columns else [0]*len(pivot)
+        pcts = (col/totals*100).round(1)
         fig.add_trace(go.Bar(
-            name=f"{DISP_ICONS[disp]} {disp}", x=pivot.index, y=col_data,
+            name=f"{DISP_ICONS[disp]} {disp}", x=pivot.index, y=col,
             marker_color=DISP_COLORS[disp], marker_line_width=0,
-            text=[f"{c} ({p}%)" for c,p in zip(col_data, pcts)],
-            textposition="inside", textfont=dict(size=10, color="#fff", family=FONT),
-            hovertemplate=f"<b>%{{x}}</b><br>{disp}: %{{y}}<extra></extra>",
-        ))
-    fig.update_layout(**_base(height=320), barmode="stack",
+            text=[f"{c}({p}%)" for c,p in zip(col,pcts)],
+            textposition="inside", textfont=dict(size=9,color="#fff",family=FONT),
+            hovertemplate=f"<b>%{{x}}</b><br>{disp}: %{{y}}<extra></extra>"))
+    fig.update_layout(**_base(h=300), barmode="stack",
         legend=dict(orientation="h", yanchor="bottom", y=1.01, xanchor="left", x=0,
                     font_size=11, bgcolor="rgba(0,0,0,0)"),
-        xaxis=dict(showgrid=False, tickfont=dict(size=12, color="#0A0E1A")),
-        yaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=10, color=TXTC)),
-    )
+        xaxis=dict(showgrid=False, tickfont=dict(size=12,color="#FFFFFF")),
+        yaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=10,color=TXTC)))
     return fig
 
 
-def agent_disposition_bar(agent_name, counts, pcts):
+def agent_disp_bar(agent, counts, pcts):
     fig = go.Figure()
-    for disp, count, pct in zip(ALL_DISPOSITIONS, counts, pcts):
-        fig.add_trace(go.Bar(
-            name=disp, x=[count], y=[agent_name], orientation="h",
+    for disp, c, p in zip(ALL_DISPOSITIONS, counts, pcts):
+        fig.add_trace(go.Bar(name=disp, x=[c], y=[agent], orientation="h",
             marker_color=DISP_COLORS[disp], marker_line_width=0,
-            text=f"{count} ({pct}%)", textposition="inside",
-            textfont=dict(size=10, color="#fff", family=FONT), showlegend=False,
-        ))
-    fig.update_layout(**_base(height=70, margin=dict(l=0,r=0,t=4,b=0)), barmode="stack",
-        xaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=10, color=TXTC)),
-        yaxis=dict(showgrid=False, tickfont=dict(size=11, color="#0A0E1A")),
-    )
+            text=f"{c}({p}%)", textposition="inside",
+            textfont=dict(size=9,color="#fff",family=FONT), showlegend=False))
+    fig.update_layout(**_base(h=65, margin=dict(l=0,r=0,t=3,b=0)), barmode="stack",
+        xaxis=dict(showgrid=True, gridcolor=GRID, zeroline=False, tickfont=dict(size=9,color=TXTC)),
+        yaxis=dict(showgrid=False, tickfont=dict(size=10,color="#FFFFFF")))
     return fig
 
 
 # ── Table helpers ─────────────────────────────────────────────────────────────
 
-def _table_styles():
+def _tbl_styles():
     return [
-        {"selector": "th", "props": [
-            ("font-size","11px"),("font-weight","700"),("letter-spacing",".06em"),
-            ("text-transform","uppercase"),("color","#9CA3AF"),("background","#F9FAFB"),
-            ("border-bottom","1px solid #E2E5EC"),("padding","10px 14px"),
-        ]},
-        {"selector": "td", "props": [
-            ("padding","10px 14px"),("border-bottom","1px solid #F3F4F6"),("color","#0A0E1A"),
-        ]},
-        {"selector": "tr:last-child td", "props": [("border-bottom","none")]},
-        {"selector": "tr:hover td",      "props": [("background-color","#F9FAFB")]},
+        {"selector":"th","props":[("font-size","11px"),("font-weight","700"),
+            ("letter-spacing",".06em"),("text-transform","uppercase"),("color","#636366"),
+            ("background","#1C1C1E"),("border-bottom","1px solid #38383A"),("padding","9px 12px")]},
+        {"selector":"td","props":[("padding","9px 12px"),("border-bottom","1px solid #2C2C2E"),
+            ("color","#FFFFFF"),("background","#1C1C1E")]},
+        {"selector":"tr:last-child td","props":[("border-bottom","none")]},
+        {"selector":"tr:hover td","props":[("background","#2C2C2E !important")]},
     ]
 
 
-def render_agent_summary_table(sub):
+def agent_table(sub):
     import pandas as pd
-    display = sub[["Agent","Attempts","Contacted","NotContacted","Contact %","TalkTimeSecs"]].copy()
-    display.rename(columns={"NotContacted":"Not Contacted"}, inplace=True)
-    display["Talk Time"] = display["TalkTimeSecs"].apply(format_duration)
-    display["Contact %"] = display["Contact %"].apply(lambda v: f"{v}%")
-    display.drop(columns=["TalkTimeSecs"], inplace=True)
+    d = sub[["Agent","Attempts","Contacted","NotContacted","Contact %","TalkTimeSecs"]].copy()
+    d.rename(columns={"NotContacted":"Not Contacted"}, inplace=True)
+    d["Talk Time"] = d["TalkTimeSecs"].apply(format_duration)
+    d["Contact %"] = d["Contact %"].apply(lambda v: f"{v}%")
+    d.drop(columns=["TalkTimeSecs"], inplace=True)
 
-    def _row_style(row):
+    def _style(row):
         v  = float(row["Contact %"].replace("%",""))
-        bg = "#F0FDF4" if v >= 60 else ("#FFFBEB" if v >= 40 else "#FEF2F2")
+        bg = "#30D15822" if v>=60 else ("#FF9F0A22" if v>=40 else "#FF453A22")
         cols = list(row.index)
-        cp_idx = cols.index("Contact %")
-        return [""] * cp_idx + [f"background:{bg};font-weight:700"] + [""] * (len(cols) - cp_idx - 1)
+        idx  = cols.index("Contact %")
+        return [""]*idx + [f"background:{bg};font-weight:700;color:#FFFFFF"] + [""]*(len(cols)-idx-1)
 
-    styled = (
-        display.style.apply(_row_style, axis=1)
-               .set_properties(**{"font-size":"13px","font-family":"DM Sans, sans-serif"})
-               .set_table_styles(_table_styles())
-               .hide(axis="index")
-    )
+    styled = (d.style.apply(_style, axis=1)
+               .set_properties(**{"font-size":"13px"})
+               .set_table_styles(_tbl_styles())
+               .hide(axis="index"))
     st.dataframe(styled, use_container_width=True, hide_index=True)
 
 
-def render_disposition_table(raw_df, camp_map):
+def disp_table(raw_df, camp_map):
     import pandas as pd
-    table_pivot = raw_df.groupby(["Agent","Disposition"]).size().unstack(fill_value=0)
+    pivot = raw_df.groupby(["Agent","Disposition"]).size().unstack(fill_value=0)
     for d in ALL_DISPOSITIONS:
-        if d not in table_pivot.columns: table_pivot[d] = 0
-    table_pivot = table_pivot[ALL_DISPOSITIONS].copy()
-    table_pivot["Total"] = table_pivot.sum(axis=1)
-    table_pivot = table_pivot.sort_values("Total", ascending=False)
+        if d not in pivot.columns: pivot[d] = 0
+    pivot = pivot[ALL_DISPOSITIONS].copy()
+    pivot["Total"] = pivot.sum(axis=1)
+    pivot = pivot.sort_values("Total", ascending=False)
 
     rows = []
-    for agent, row in table_pivot.iterrows():
+    for agent, row in pivot.iterrows():
         total = row["Total"]
-        r = {"Agent": agent, "Campaign": camp_map.get(agent, "Unknown")}
+        r = {"Agent":agent, "Campaign":camp_map.get(agent,"Unknown")}
         for d in ALL_DISPOSITIONS:
             c = int(row[d]); p = round(c/total*100,1) if total else 0.0
-            r[d] = f"{c}  ({p}%)"
+            r[d] = f"{c} ({p}%)"
         r["Total"] = int(total)
         rows.append(r)
 
-    display_df = pd.DataFrame(rows)
-
-    def _colour_camp(val):
-        if val == "Sports":  return "color:#0A0E1A;font-weight:700"
-        if val == "Holiday": return "color:#0A0E1A;font-weight:700"
-        return ""
-
-    styled = (
-        display_df.style.map(_colour_camp, subset=["Campaign"])
-                  .set_properties(**{"font-size":"13px","font-family":"DM Sans, sans-serif"})
-                  .set_table_styles(_table_styles())
-                  .hide(axis="index")
-    )
+    df = pd.DataFrame(rows)
+    styled = (df.style
+               .set_properties(**{"font-size":"13px"})
+               .set_table_styles(_tbl_styles())
+               .hide(axis="index"))
     st.dataframe(styled, use_container_width=True, hide_index=True)
-    return table_pivot
+    return pivot
