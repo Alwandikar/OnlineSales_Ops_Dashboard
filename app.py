@@ -26,6 +26,19 @@ st.set_page_config(
 )
 inject_css()
 
+# Force sidebar open via JS — works even when Streamlit tries to collapse it
+st.markdown("""
+<script>
+    window.addEventListener('load', function() {
+        const sidebar = window.parent.document.querySelector('[data-testid="stSidebar"]');
+        const btn = window.parent.document.querySelector('[data-testid="collapsedControl"]');
+        if (sidebar && sidebar.getAttribute('aria-expanded') === 'false' && btn) {
+            btn.click();
+        }
+    });
+</script>
+""", unsafe_allow_html=True)
+
 # ── Sidebar ───────────────────────────────────────────────────────────────────
 sidebar_nav()
 

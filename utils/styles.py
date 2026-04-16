@@ -17,32 +17,14 @@ html, body, [class*="css"], .stApp {
 section[data-testid="stSidebar"] {
     background: #1C1C1E !important;
     border-right: 1px solid #38383A !important;
-    width: 220px !important;
-    min-width: 220px !important;
 }
-section[data-testid="stSidebar"][aria-expanded="false"] {
-    margin-left: 0 !important;
-    width: 220px !important;
-    min-width: 220px !important;
-}
-section[data-testid="stSidebar"] > div { padding-top: 0 !important; }
-[data-testid="collapsedControl"] { 
-    color: #0A84FF !important; 
-    background: #1C1C1E !important;
-}
-[data-testid="stSidebarNav"] { padding-top: 0 !important; }
 [data-testid="stSidebarNav"] a {
     color: #8E8E93 !important;
-    font-size: .9rem !important;
     font-weight: 500 !important;
     border-radius: 8px !important;
-    padding: .5rem .8rem !important;
 }
-[data-testid="stSidebarNav"] a:hover { background: #2C2C2E !important; color: #FFFFFF !important; }
-[data-testid="stSidebarNav"] a[aria-selected="true"] {
-    background: #0A84FF22 !important;
-    color: #0A84FF !important;
-}
+[data-testid="stSidebarNav"] a:hover { color: #FFFFFF !important; }
+[data-testid="stSidebarNav"] a[aria-selected="true"] { color: #0A84FF !important; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
