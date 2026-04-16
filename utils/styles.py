@@ -15,16 +15,16 @@ html, body, [class*="css"], .stApp {
 
 /* ── Sidebar ─────────────────────────────────────────────────────────────── */
 section[data-testid="stSidebar"] {
-    background: #1C1C1E !important;
-    border-right: 1px solid #38383A !important;
+    background: #1C1C1E;
+    border-right: 1px solid #38383A;
 }
 [data-testid="stSidebarNav"] a {
-    color: #8E8E93 !important;
-    font-weight: 500 !important;
-    border-radius: 8px !important;
+    color: #8E8E93;
+    font-weight: 500;
+    border-radius: 8px;
 }
-[data-testid="stSidebarNav"] a:hover { color: #FFFFFF !important; }
-[data-testid="stSidebarNav"] a[aria-selected="true"] { color: #0A84FF !important; }
+[data-testid="stSidebarNav"] a:hover { color: #FFFFFF; }
+[data-testid="stSidebarNav"] a[aria-selected="true"] { color: #0A84FF; }
 
 /* ── Tabs ────────────────────────────────────────────────────────────────── */
 .stTabs [data-baseweb="tab-list"] {
