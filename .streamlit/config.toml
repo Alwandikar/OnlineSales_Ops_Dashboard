@@ -8,3 +8,6 @@ primaryColor = "#0A84FF"
 [server]
 headless = true
 enableCORS = false
+
+[client]
+showSidebarNavigation = true
